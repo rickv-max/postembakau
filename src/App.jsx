@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   ShoppingBag,
   Package,
@@ -163,14 +163,26 @@ const formatWeight = (grams) => {
 // --- MAIN APPLICATION COMPONENT ---
 export default function App() {
   // AUTH STATE
-  const [users, setUsers] = useState(INITIAL_USERS);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [users, setUsers] = useState(() => {
+    const saved = localStorage.getItem("tako_users");
+    return saved ? JSON.parse(saved) : INITIAL_USERS;
+  });
+  const [currentUser, setCurrentUser] = useState(() => {
+    const saved = localStorage.getItem("tako_currentUser");
+    return saved ? JSON.parse(saved) : null;
+  });
 
   // MAIN APP STATE
   const [activeTab, setActiveTab] = useState("pos");
-  const [inventory, setInventory] = useState(INITIAL_INVENTORY);
+  const [inventory, setInventory] = useState(() => {
+    const saved = localStorage.getItem("tako_inventory");
+    return saved ? JSON.parse(saved) : INITIAL_INVENTORY;
+  });
   const [cart, setCart] = useState([]);
-  const [transactions, setTransactions] = useState(generateMockTransactions());
+  const [transactions, setTransactions] = useState(() => {
+    const saved = localStorage.getItem("tako_transactions");
+    return saved ? JSON.parse(saved) : generateMockTransactions();
+  });
   const [searchQuery, setSearchQuery] = useState("");
 
   // UI & MODALS STATE
@@ -201,6 +213,27 @@ export default function App() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
+
+  // --- LOCAL STORAGE EFFECTS ---
+  useEffect(() => {
+    localStorage.setItem("tako_users", JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem("tako_currentUser", JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem("tako_currentUser");
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    localStorage.setItem("tako_inventory", JSON.stringify(inventory));
+  }, [inventory]);
+
+  useEffect(() => {
+    localStorage.setItem("tako_transactions", JSON.stringify(transactions));
+  }, [transactions]);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
