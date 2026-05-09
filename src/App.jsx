@@ -10,12 +10,13 @@ import {
   Clock,
   Receipt,
   Printer,
-  TrendingUp,
   X,
   Edit3,
   Save,
   Calculator,
   ChevronUp,
+  MapPin,
+  Store,
   PlusCircle,
   Download,
   Calendar,
@@ -27,6 +28,7 @@ import {
   Lock,
   Users,
   UserPlus,
+  Filter,
 } from "lucide-react";
 import { initializeApp } from "firebase/app";
 import {
@@ -45,13 +47,10 @@ import {
 } from "firebase/firestore";
 
 // --- SETUP FIREBASE (CLOUD STORAGE) ---
-// PERHATIAN: Masukkan Konfigurasi Firebase Anda di bawah ini
 const getFirebaseConfig = () => {
   if (typeof __firebase_config !== "undefined") {
     return JSON.parse(__firebase_config);
   }
-  // GANTI VALUE DI BAWAH INI DENGAN CONFIG DARI FIREBASE CONSOLE ANDA:
-  // Catatan: Jika menggunakan lokal (Vite), Anda dapat menggunakan import.meta.env.VITE_FIREBASE_API_KEY dst.
   return {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -71,97 +70,101 @@ const auth = app ? getAuth(app) : null;
 const db = app ? getFirestore(app) : null;
 const appId = typeof __app_id !== "undefined" ? __app_id : "takopos-cloud";
 
+// --- KONFIGURASI CABANG ---
+const BRANCHES = [
+  { id: "br_01", name: "Randuagung" },
+  { id: "br_02", name: "Pasar Randuagung" },
+  { id: "br_03", name: "Tunjung" },
+  { id: "br_04", name: "Jatiroto" },
+  { id: "br_05", name: "Sumber Baru" },
+];
+
+const getBranchName = (branchId) => {
+  if (branchId === "all") return "Semua Cabang";
+  const branch = BRANCHES.find((b) => b.id === branchId);
+  return branch ? branch.name : "Tidak Diketahui";
+};
+
 // --- DATA AWAL (MOCK DATABASE) ---
 
 const INITIAL_USERS = [
   {
     id: 1,
-    username: "kasir",
-    password: "123",
-    name: "Rangga (Kasir)",
-    role: "Kasir",
-  },
-  {
-    id: 2,
     username: "admin",
     password: "admin",
     name: "Bpk. Pemilik",
     role: "Owner",
-  },
-];
-
-const INITIAL_INVENTORY = [
-  {
-    id: 1,
-    name: "Tembakau Gayo Aceh",
-    pricePerGram: 150,
-    stockGrams: 10000,
-    category: "Nusantara",
+    branchId: "all",
   },
   {
     id: 2,
-    name: "Tembakau Temanggung",
-    pricePerGram: 200,
-    stockGrams: 10000,
-    category: "Nusantara",
+    username: "kasir_rda",
+    password: "123",
+    name: "Kasir Randuagung",
+    role: "Kasir",
+    branchId: "br_01",
   },
   {
     id: 3,
-    name: "Tembakau Kasturi",
-    pricePerGram: 120,
-    stockGrams: 10000,
-    category: "Nusantara",
-  },
-  {
-    id: 4,
-    name: "Tembakau Darmawangi",
-    pricePerGram: 180,
-    stockGrams: 10000,
-    category: "Nusantara",
-  },
-  {
-    id: 5,
-    name: "Tembakau Virginia",
-    pricePerGram: 250,
-    stockGrams: 10000,
-    category: "Import Blend",
-  },
-  {
-    id: 6,
-    name: "Tembakau Burley",
-    pricePerGram: 220,
-    stockGrams: 10000,
-    category: "Import Blend",
-  },
-  {
-    id: 7,
-    name: "Tembakau Latakia",
-    pricePerGram: 400,
-    stockGrams: 10000,
-    category: "Premium",
-  },
-  {
-    id: 8,
-    name: "Tembakau Perique",
-    pricePerGram: 450,
-    stockGrams: 10000,
-    category: "Premium",
-  },
-  {
-    id: 9,
-    name: "Tembakau Oriental",
-    pricePerGram: 300,
-    stockGrams: 10000,
-    category: "Import Blend",
-  },
-  {
-    id: 10,
-    name: "Tembakau Besuki",
-    pricePerGram: 130,
-    stockGrams: 10000,
-    category: "Nusantara",
+    username: "kasir_tunjung",
+    password: "123",
+    name: "Kasir Tunjung",
+    role: "Kasir",
+    branchId: "br_03",
   },
 ];
+
+const generateInitialInventory = () => {
+  const baseItems = [
+    {
+      name: "Tembakau Gayo Aceh",
+      pricePerGram: 150,
+      costPerGram: 100,
+      category: "Nusantara",
+    },
+    {
+      name: "Tembakau Temanggung",
+      pricePerGram: 200,
+      costPerGram: 140,
+      category: "Nusantara",
+    },
+    {
+      name: "Tembakau Kasturi",
+      pricePerGram: 120,
+      costPerGram: 80,
+      category: "Nusantara",
+    },
+    {
+      name: "Tembakau Virginia",
+      pricePerGram: 250,
+      costPerGram: 170,
+      category: "Import Blend",
+    },
+    {
+      name: "Alat Linting (Roller)",
+      pricePerGram: 15000,
+      costPerGram: 10000,
+      category: "Aksesoris",
+      isPiece: true,
+    },
+  ];
+
+  let inventory = [];
+  let idCounter = 1;
+  BRANCHES.forEach((branch) => {
+    baseItems.forEach((item) => {
+      inventory.push({
+        id: idCounter++,
+        ...item,
+        stockGrams: item.isPiece ? 50 : 5000,
+        branchId: branch.id,
+      });
+    });
+  });
+  return inventory;
+};
+
+const INITIAL_INVENTORY = generateInitialInventory();
 
 // --- HELPER FUNCTIONS ---
 const formatRp = (amount) => {
@@ -172,20 +175,22 @@ const formatRp = (amount) => {
   }).format(amount);
 };
 
-const formatWeight = (grams) => {
+const formatWeight = (grams, isPiece) => {
+  if (isPiece) return `${grams} pcs`;
   if (grams >= 1000) return `${(grams / 1000).toFixed(2)} kg`;
   return `${grams} gr`;
 };
 
 // --- MAIN APPLICATION COMPONENT ---
 export default function App() {
-  // FIREBASE & LOADING STATE
+  // FIREBASE STATE
   const [fbUser, setFbUser] = useState(null);
-  const [isDbReady, setIsDbReady] = useState(false);
-  const [firebaseError] = useState(!app);
 
   // AUTH STATE
-  const [users, setUsers] = useState(INITIAL_USERS);
+  const [users, setUsers] = useState(() => {
+    const saved = localStorage.getItem("tako_users");
+    return saved ? JSON.parse(saved) : INITIAL_USERS;
+  });
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem("tako_currentUser");
     return saved ? JSON.parse(saved) : null;
@@ -193,9 +198,16 @@ export default function App() {
 
   // MAIN APP STATE
   const [activeTab, setActiveTab] = useState("pos");
-  const [inventory, setInventory] = useState(INITIAL_INVENTORY);
+  const [activeBranch, setActiveBranch] = useState("all");
+  const [inventory, setInventory] = useState(() => {
+    const saved = localStorage.getItem("tako_inventory");
+    return saved ? JSON.parse(saved) : INITIAL_INVENTORY;
+  });
   const [cart, setCart] = useState([]);
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState(() => {
+    const saved = localStorage.getItem("tako_transactions");
+    return saved ? JSON.parse(saved) : [];
+  });
   const [searchQuery, setSearchQuery] = useState("");
 
   // UI & MODALS STATE
@@ -206,6 +218,7 @@ export default function App() {
   const [checkoutModal, setCheckoutModal] = useState(false);
   const [cashInput, setCashInput] = useState("");
   const [receiptModal, setReceiptModal] = useState(null);
+  const [dailyReportModal, setDailyReportModal] = useState(false);
 
   const [editingProduct, setEditingProduct] = useState(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
@@ -222,12 +235,55 @@ export default function App() {
     password: "",
     name: "",
     role: "Kasir",
+    branchId: "br_01",
   });
 
-  const [selectedMonthYear, setSelectedMonthYear] = useState(() => {
+  // FILTER LAPORAN STATE
+  const [filterMode, setFilterMode] = useState("month");
+  const [selectedFilterValue, setSelectedFilterValue] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
+
+  const handleFilterModeChange = (mode) => {
+    setFilterMode(mode);
+    const d = new Date();
+    if (mode === "day")
+      setSelectedFilterValue(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+      );
+    else if (mode === "month")
+      setSelectedFilterValue(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      );
+    else if (mode === "year") setSelectedFilterValue(`${d.getFullYear()}`);
+  };
+
+  // --- LOCAL STORAGE EFFECTS ---
+  useEffect(() => {
+    localStorage.setItem("tako_users", JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem("tako_currentUser", JSON.stringify(currentUser));
+      if (currentUser.role === "Owner" && activeBranch === "all") {
+        // Biarkan 'all' jika Owner
+      } else {
+        setActiveBranch(currentUser.branchId);
+      }
+    } else {
+      localStorage.removeItem("tako_currentUser");
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    localStorage.setItem("tako_inventory", JSON.stringify(inventory));
+  }, [inventory]);
+
+  useEffect(() => {
+    localStorage.setItem("tako_transactions", JSON.stringify(transactions));
+  }, [transactions]);
 
   // --- FIREBASE CLOUD EFFECTS ---
   useEffect(() => {
@@ -247,14 +303,15 @@ export default function App() {
       }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => setFbUser(user));
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) setFbUser(user);
+    });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     if (!fbUser || !db) return;
 
-    // Sinkronisasi Users
     const unsubUsers = onSnapshot(
       collection(db, "artifacts", appId, "public", "data", "appUsers"),
       (snapshot) => {
@@ -275,10 +332,9 @@ export default function App() {
             ),
           );
       },
-      (err) => console.error(err),
+      (err) => console.error("Sync Error:", err),
     );
 
-    // Sinkronisasi Inventory
     const unsubInv = onSnapshot(
       collection(db, "artifacts", appId, "public", "data", "inventory"),
       (snapshot) => {
@@ -300,19 +356,17 @@ export default function App() {
             ),
           );
       },
-      (err) => console.error(err),
+      (err) => console.error("Sync Error:", err),
     );
 
-    // Sinkronisasi Transactions
     const unsubTrx = onSnapshot(
       collection(db, "artifacts", appId, "public", "data", "transactions"),
       (snapshot) => {
         const trxs = snapshot.docs.map((doc) => doc.data());
         trxs.sort((a, b) => new Date(b.date) - new Date(a.date));
         setTransactions(trxs);
-        setIsDbReady(true);
       },
-      (err) => console.error(err),
+      (err) => console.error("Sync Error:", err),
     );
 
     return () => {
@@ -321,14 +375,6 @@ export default function App() {
       unsubTrx();
     };
   }, [fbUser]);
-
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem("tako_currentUser", JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem("tako_currentUser");
-    }
-  }, [currentUser]);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -342,6 +388,14 @@ export default function App() {
     );
     if (user) {
       setCurrentUser(user);
+
+      if (user.role === "Owner") {
+        setActiveBranch("all");
+      } else {
+        setActiveBranch(user.branchId);
+        handleFilterModeChange("day");
+      }
+      setCart([]);
       showToast(`Selamat datang, ${user.name}`);
     } else {
       showToast("Username atau Password salah!", "error");
@@ -354,6 +408,7 @@ export default function App() {
     setProfileModal(false);
     setActiveTab("pos");
     setProfileTab("security");
+    setActiveBranch("all");
   };
 
   const handleChangePassword = (oldPass, newPass) => {
@@ -362,18 +417,23 @@ export default function App() {
       return false;
     }
     const updatedUser = { ...currentUser, password: newPass };
-    setDoc(
-      doc(
-        db,
-        "artifacts",
-        appId,
-        "public",
-        "data",
-        "appUsers",
-        String(currentUser.id),
-      ),
-      updatedUser,
-    );
+    if (fbUser && db)
+      setDoc(
+        doc(
+          db,
+          "artifacts",
+          appId,
+          "public",
+          "data",
+          "appUsers",
+          String(currentUser.id),
+        ),
+        updatedUser,
+      );
+    else
+      setUsers((prev) =>
+        prev.map((u) => (u.id === currentUser.id ? updatedUser : u)),
+      );
     setCurrentUser(updatedUser);
     showToast("Password berhasil diubah!");
     setProfileModal(false);
@@ -396,22 +456,32 @@ export default function App() {
     }
 
     const newUserObj = { ...newUser, id: Date.now() };
-    setDoc(
-      doc(
-        db,
-        "artifacts",
-        appId,
-        "public",
-        "data",
-        "appUsers",
-        String(newUserObj.id),
-      ),
-      newUserObj,
-    );
+    if (fbUser && db)
+      setDoc(
+        doc(
+          db,
+          "artifacts",
+          appId,
+          "public",
+          "data",
+          "appUsers",
+          String(newUserObj.id),
+        ),
+        newUserObj,
+      );
+    else setUsers([newUserObj, ...users]);
 
     setIsAddingUser(false);
-    setNewUser({ username: "", password: "", name: "", role: "Kasir" });
-    showToast("Akun karyawan berhasil dibuat");
+    setNewUser({
+      username: "",
+      password: "",
+      name: "",
+      role: "Kasir",
+      branchId: "br_01",
+    });
+    showToast(
+      `Akun kasir berhasil dibuat untuk ${getBranchName(newUserObj.branchId)}`,
+    );
   };
 
   const handleDeleteUser = (id) => {
@@ -419,18 +489,31 @@ export default function App() {
       showToast("Anda tidak bisa menghapus akun sendiri!", "error");
       return;
     }
-    deleteDoc(
-      doc(db, "artifacts", appId, "public", "data", "appUsers", String(id)),
-    );
+    if (fbUser && db)
+      deleteDoc(
+        doc(db, "artifacts", appId, "public", "data", "appUsers", String(id)),
+      );
+    else setUsers(users.filter((u) => u.id !== id));
     showToast("Akun karyawan dihapus");
   };
 
+  // --- DATA FILTERING BY BRANCH ---
+  const branchInventory = useMemo(() => {
+    if (activeBranch === "all") return inventory;
+    return inventory.filter((item) => item.branchId === activeBranch);
+  }, [inventory, activeBranch]);
+
+  const branchTransactions = useMemo(() => {
+    if (activeBranch === "all") return transactions;
+    return transactions.filter((trx) => trx.branchId === activeBranch);
+  }, [transactions, activeBranch]);
+
   // --- CART LOGIC ---
   const filteredProducts = useMemo(() => {
-    return inventory.filter((p) =>
+    return branchInventory.filter((p) =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()),
     );
-  }, [inventory, searchQuery]);
+  }, [branchInventory, searchQuery]);
 
   const cartTotal = useMemo(() => {
     return cart.reduce(
@@ -451,7 +534,10 @@ export default function App() {
   const handleAddToCart = () => {
     const weight = parseInt(weightInput);
     if (!weight || weight <= 0) {
-      showToast("Masukkan berat yang valid", "error");
+      showToast(
+        `Masukkan ${selectedProduct.isPiece ? "jumlah" : "berat"} yang valid`,
+        "error",
+      );
       return;
     }
 
@@ -462,7 +548,7 @@ export default function App() {
 
     if (currentCartWeight + weight > selectedProduct.stockGrams) {
       showToast(
-        `Stok tidak cukup! Sisa stok: ${formatWeight(selectedProduct.stockGrams)}`,
+        `Stok tidak cukup! Sisa stok: ${formatWeight(selectedProduct.stockGrams, selectedProduct.isPiece)}`,
         "error",
       );
       return;
@@ -479,7 +565,7 @@ export default function App() {
     });
 
     showToast(
-      `Berhasil menambahkan ${formatWeight(weight)} ${selectedProduct.name}`,
+      `Berhasil menambahkan ${formatWeight(weight, selectedProduct.isPiece)} ${selectedProduct.name}`,
     );
     setSelectedProduct(null);
   };
@@ -496,58 +582,74 @@ export default function App() {
       return;
     }
 
-    // Potong Stok Gudang ke Cloud
+    const newInventory = [...inventory];
+
     cart.forEach((cartItem) => {
-      const invItem = inventory.find((p) => p.id === cartItem.id);
-      if (invItem) {
+      const invIndex = newInventory.findIndex((p) => p.id === cartItem.id);
+      if (invIndex !== -1) {
         const updatedInv = {
-          ...invItem,
-          stockGrams: invItem.stockGrams - cartItem.weight,
+          ...newInventory[invIndex],
+          stockGrams: newInventory[invIndex].stockGrams - cartItem.weight,
         };
-        setDoc(
-          doc(
-            db,
-            "artifacts",
-            appId,
-            "public",
-            "data",
-            "inventory",
-            String(invItem.id),
-          ),
-          updatedInv,
-        );
+        newInventory[invIndex] = updatedInv;
+        if (fbUser && db)
+          setDoc(
+            doc(
+              db,
+              "artifacts",
+              appId,
+              "public",
+              "data",
+              "inventory",
+              String(updatedInv.id),
+            ),
+            updatedInv,
+          );
       }
     });
+    if (!fbUser || !db) setInventory(newInventory);
+
+    const transactionTotalCost = cart.reduce(
+      (sum, item) => sum + (item.costPerGram || 0) * item.weight,
+      0,
+    );
 
     const transaction = {
       id: `TRX-${Date.now().toString().slice(-6)}`,
       date: new Date().toISOString(),
       items: [...cart],
       total: cartTotal,
+      totalCost: transactionTotalCost,
+      profit: cartTotal - transactionTotalCost,
       cash: cash,
       change: cash - cartTotal,
       cashier: currentUser.name,
+      branchId: activeBranch,
     };
 
-    // Simpan Transaksi ke Cloud
-    setDoc(
-      doc(
-        db,
-        "artifacts",
-        appId,
-        "public",
-        "data",
-        "transactions",
-        String(transaction.id),
-      ),
-      transaction,
-    );
+    if (fbUser && db)
+      setDoc(
+        doc(
+          db,
+          "artifacts",
+          appId,
+          "public",
+          "data",
+          "transactions",
+          String(transaction.id),
+        ),
+        transaction,
+      );
+    else setTransactions([transaction, ...transactions]);
 
     setCart([]);
     setCheckoutModal(false);
     setIsMobileCartOpen(false);
     setCashInput("");
-    setReceiptModal(transaction);
+
+    if (currentUser?.role === "Owner") {
+      setReceiptModal(transaction);
+    }
     showToast("Pembayaran berhasil!");
   };
 
@@ -556,24 +658,40 @@ export default function App() {
       showToast("Nama dan harga harus valid!", "error");
       return;
     }
+    if (activeBranch === "all" && isAddingNew && !editingProduct.branchId) {
+      showToast("Pilih cabang terlebih dahulu!", "error");
+      return;
+    }
 
     const invObj = isAddingNew
       ? { ...editingProduct, id: Date.now() }
       : editingProduct;
-    setDoc(
-      doc(
-        db,
-        "artifacts",
-        appId,
-        "public",
-        "data",
-        "inventory",
-        String(invObj.id),
-      ),
-      invObj,
-    );
 
-    if (isAddingNew) showToast("Produk baru berhasil ditambahkan");
+    if (fbUser && db)
+      setDoc(
+        doc(
+          db,
+          "artifacts",
+          appId,
+          "public",
+          "data",
+          "inventory",
+          String(invObj.id),
+        ),
+        invObj,
+      );
+    else {
+      if (isAddingNew) setInventory([invObj, ...inventory]);
+      else
+        setInventory((prev) =>
+          prev.map((p) => (p.id === editingProduct.id ? invObj : p)),
+        );
+    }
+
+    if (isAddingNew)
+      showToast(
+        `Produk baru berhasil ditambahkan di ${getBranchName(invObj.branchId)}`,
+      );
     else showToast("Data produk berhasil diperbarui");
 
     setEditingProduct(null);
@@ -581,9 +699,11 @@ export default function App() {
   };
 
   const handleDeleteProduct = (id) => {
-    deleteDoc(
-      doc(db, "artifacts", appId, "public", "data", "inventory", String(id)),
-    );
+    if (fbUser && db)
+      deleteDoc(
+        doc(db, "artifacts", appId, "public", "data", "inventory", String(id)),
+      );
+    else setInventory((prev) => prev.filter((p) => p.id !== id));
     setCart((prev) => prev.filter((item) => item.id !== id));
     if (cart.length === 1 && cart[0].id === id) setIsMobileCartOpen(false);
     setConfirmDeleteId(null);
@@ -591,9 +711,19 @@ export default function App() {
   };
 
   const handleDeleteTransaction = (id) => {
-    deleteDoc(
-      doc(db, "artifacts", appId, "public", "data", "transactions", String(id)),
-    );
+    if (fbUser && db)
+      deleteDoc(
+        doc(
+          db,
+          "artifacts",
+          appId,
+          "public",
+          "data",
+          "transactions",
+          String(id),
+        ),
+      );
+    else setTransactions((prev) => prev.filter((trx) => trx.id !== id));
     setConfirmDeleteTransactionId(null);
     showToast("Data riwayat berhasil dihapus secara permanen");
   };
@@ -603,42 +733,92 @@ export default function App() {
     setEditingProduct({
       name: "",
       pricePerGram: 0,
+      costPerGram: 0,
       stockGrams: 0,
       category: "Nusantara",
+      isPiece: false,
+      branchId: activeBranch === "all" ? "br_01" : activeBranch,
     });
   };
 
-  const availableMonths = useMemo(() => {
-    const months = new Set();
-    transactions.forEach((trx) => {
-      const d = new Date(trx.date);
-      months.add(
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      );
-    });
+  // --- REPORT FILTERING LOGIC ---
+  const availableOptions = useMemo(() => {
+    const options = new Set();
     const now = new Date();
-    months.add(
-      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
-    );
-    return Array.from(months).sort().reverse();
-  }, [transactions]);
+
+    if (filterMode === "day")
+      options.add(
+        `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`,
+      );
+    if (filterMode === "month")
+      options.add(
+        `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
+      );
+    if (filterMode === "year") options.add(`${now.getFullYear()}`);
+
+    branchTransactions.forEach((trx) => {
+      const d = new Date(trx.date);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      if (filterMode === "day") options.add(`${y}-${m}-${day}`);
+      if (filterMode === "month") options.add(`${y}-${m}`);
+      if (filterMode === "year") options.add(`${y}`);
+    });
+    return Array.from(options).sort().reverse();
+  }, [branchTransactions, filterMode]);
 
   const filteredHistory = useMemo(() => {
-    return transactions.filter((trx) => {
+    return branchTransactions.filter((trx) => {
       const d = new Date(trx.date);
-      return (
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` ===
-        selectedMonthYear
-      );
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      let trxStr = "";
+      if (filterMode === "day") trxStr = `${y}-${m}-${day}`;
+      if (filterMode === "month") trxStr = `${y}-${m}`;
+      if (filterMode === "year") trxStr = `${y}`;
+      return trxStr === selectedFilterValue;
     });
-  }, [transactions, selectedMonthYear]);
+  }, [branchTransactions, filterMode, selectedFilterValue]);
 
-  const formatMonthName = (YYYY_MM) => {
-    const [year, month] = YYYY_MM.split("-");
-    return new Date(year, parseInt(month) - 1, 1).toLocaleDateString("id-ID", {
-      month: "long",
-      year: "numeric",
+  const dailyItemsSummary = useMemo(() => {
+    const summary = {};
+    filteredHistory.forEach((trx) => {
+      trx.items.forEach((item) => {
+        const key = `${item.name}_${item.isPiece ? "pcs" : "gr"}`;
+        if (!summary[key])
+          summary[key] = {
+            name: item.name,
+            weight: 0,
+            total: 0,
+            isPiece: item.isPiece,
+          };
+        summary[key].weight += item.weight;
+        summary[key].total += item.weight * item.pricePerGram;
+      });
     });
+    return Object.values(summary);
+  }, [filteredHistory]);
+
+  const formatFilterLabel = (val, mode) => {
+    if (!val) return "";
+    const parts = val.split("-");
+    const y = parts[0];
+    const m = parts[1] ? parseInt(parts[1]) - 1 : 0;
+    const d = parts[2] ? parseInt(parts[2]) : 1;
+    if (mode === "day")
+      return new Date(y, m, d).toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+    if (mode === "month")
+      return new Date(y, m, 1).toLocaleDateString("id-ID", {
+        month: "long",
+        year: "numeric",
+      });
+    if (mode === "year") return y;
   };
 
   const handleExportExcel = () => {
@@ -647,42 +827,60 @@ export default function App() {
       return;
     }
 
-    // MENGGUNAKAN TITIK KOMA (;) AGAR RAPI DI EXCEL REGIONAL INDONESIA
     const separator = ";";
     const headers = [
       "ID Transaksi",
+      "Cabang",
       "Tanggal",
       "Jam",
       "Nama Kasir",
       "Daftar Pembelian",
-      "Total Transaksi",
+      "Total Modal (Kulak)",
+      "Total Pendapatan Jual",
+      "Keuntungan Bersih",
       "Tunai",
       "Kembalian",
     ];
 
+    let grandTotalCost = 0;
     let grandTotal = 0;
+    let grandProfit = 0;
     let grandCash = 0;
     let grandChange = 0;
 
     const csvData = filteredHistory.map((trx) => {
       const d = new Date(trx.date);
-      // Ganti pemisah item menggunakan + agar tidak bentrok dengan karakter CSV
       const itemsStr = trx.items
-        .map((item) => `${item.weight}gr ${item.name}`)
+        .map(
+          (item) => `${formatWeight(item.weight, item.isPiece)} ${item.name}`,
+        )
         .join(" + ");
+      const trxCost =
+        trx.totalCost !== undefined
+          ? trx.totalCost
+          : trx.items.reduce(
+              (sum, item) => sum + (item.costPerGram || 0) * item.weight,
+              0,
+            );
+      const trxProfit =
+        trx.profit !== undefined ? trx.profit : trx.total - trxCost;
 
+      grandTotalCost += trxCost;
       grandTotal += trx.total;
+      grandProfit += trxProfit;
       grandCash += trx.cash;
       grandChange += trx.change;
 
-      // Data string dibungkus kutip ganda, angka dibiarkan murni agar terbaca format angka di Excel
       return [
         `"${trx.id}"`,
+        `"${getBranchName(trx.branchId)}"`,
         `"${d.toLocaleDateString("id-ID")}"`,
         `"${d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}"`,
         `"${trx.cashier || "-"}"`,
         `"${itemsStr}"`,
+        trxCost,
         trx.total,
+        trxProfit,
         trx.cash,
         trx.change,
       ].join(separator);
@@ -693,15 +891,16 @@ export default function App() {
       `""`,
       `""`,
       `""`,
+      `""`,
       `"TOTAL KESELURUHAN"`,
+      grandTotalCost,
       grandTotal,
+      grandProfit,
       grandCash,
       grandChange,
     ].join(separator);
-
     csvData.push(totalRow);
 
-    // Tambahkan instruksi 'sep=;' di baris pertama agar Excel tahu pemisahnya
     const csvString =
       `sep=${separator}\n` + [headers.join(separator), ...csvData].join("\n");
     const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csvString], {
@@ -709,17 +908,144 @@ export default function App() {
     });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
+    let modeLabel =
+      filterMode === "day"
+        ? "Harian"
+        : filterMode === "month"
+          ? "Bulanan"
+          : "Tahunan";
     link.setAttribute(
       "download",
-      `Laporan_Toko_Tembakau_${selectedMonthYear}.csv`,
+      `Laporan_${modeLabel}_${getBranchName(activeBranch).replace(/\s/g, "")}_${selectedFilterValue}.csv`,
     );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-
     showToast(
-      `Berhasil mengunduh laporan ${formatMonthName(selectedMonthYear)}`,
+      `Berhasil mengunduh laporan Excel ${formatFilterLabel(selectedFilterValue, filterMode)}`,
     );
+  };
+
+  // --- FUNGSI CETAK PDF LAPORAN KASIR ---
+  const handleSavePDF = () => {
+    if (filteredHistory.length === 0) {
+      showToast("Tidak ada data untuk dicetak.", "error");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      showToast(
+        "Gagal membuka tab baru. Mohon izinkan pop-up di browser Anda.",
+        "error",
+      );
+      return;
+    }
+
+    const totalSetoran = filteredHistory.reduce(
+      (acc, curr) => acc + curr.total,
+      0,
+    );
+    const waktuCetak = new Date().toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const tanggalCetak = new Date().toLocaleDateString("id-ID");
+    const periode = formatFilterLabel(selectedFilterValue, filterMode);
+    const namaKasir = currentUser?.name || "Kasir";
+    const namaCabang = getBranchName(currentUser?.branchId);
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Laporan_Penjualan_${namaKasir.replace(/\s+/g, "_")}_${tanggalCetak.replace(/\//g, "-")}</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; color: #111; max-width: 800px; margin: 0 auto; }
+          .header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }
+          .title { font-size: 26px; font-weight: 900; margin: 0 0 5px 0; }
+          .subtitle { font-size: 14px; color: #666; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+          .meta { display: flex; justify-content: space-between; font-size: 13px; color: #444; margin-top: 20px; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; }
+          .section-title { font-size: 14px; font-weight: 900; text-transform: uppercase; color: #333; border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 15px; margin-top: 35px; }
+          .item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #eee; padding: 10px 0; font-size: 14px; }
+          .item-name { font-weight: bold; color: #222; }
+          .item-weight { font-size: 12px; color: #777; margin-top: 4px; }
+          .item-total { font-weight: 900; font-size: 15px; }
+          .summary { margin-top: 35px; border: 2px solid #eee; border-radius: 12px; padding: 20px; background: #fafafa; }
+          .summary-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 15px; font-weight: 600; color: #555; }
+          .summary-total { font-size: 22px; font-weight: 900; color: #111; margin-top: 15px; padding-top: 15px; border-top: 2px dashed #ccc; }
+          .footer { text-align: center; margin-top: 50px; font-size: 11px; color: #aaa; }
+          
+          /* CSS Khusus Print untuk hasil PDF yang rapi */
+          @media print {
+            @page { margin: 15mm; }
+            body { padding: 0; background: white; max-width: 100%; }
+            .header, .summary, .meta { background: white; border-color: #ddd; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="title">Toko SAFIRA</h1>
+          <div class="subtitle">Laporan Penjualan Cabang</div>
+          <div class="meta">
+            <div>
+              <strong>Kasir:</strong> ${namaKasir}<br>
+              <strong style="display:inline-block; margin-top:5px;">Cabang:</strong> ${namaCabang}
+            </div>
+            <div style="text-align: right;">
+              <strong>Periode:</strong> ${periode}<br>
+              <strong style="display:inline-block; margin-top:5px;">Dicetak:</strong> ${tanggalCetak} ${waktuCetak}
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">Rincian Barang Terjual</div>
+        ${dailyItemsSummary
+          .map(
+            (item) => `
+          <div class="item">
+            <div>
+              <div class="item-name">${item.name}</div>
+              <div class="item-weight">${formatWeight(item.weight, item.isPiece)}</div>
+            </div>
+            <div class="item-total">${formatRp(item.total)}</div>
+          </div>
+        `,
+          )
+          .join("")}
+        ${dailyItemsSummary.length === 0 ? '<p style="text-align:center; font-style:italic; color:#999; font-size:14px; padding: 20px;">Belum ada penjualan pada periode ini</p>' : ""}
+
+        <div class="summary">
+          <div class="summary-row">
+            <span>Total Transaksi Selesai</span>
+            <span>${filteredHistory.length} Transaksi</span>
+          </div>
+          <div class="summary-row summary-total">
+            <span>TOTAL UANG SETORAN</span>
+            <span>${formatRp(totalSetoran)}</span>
+          </div>
+        </div>
+
+        <div class="footer">
+          Dokumen sah dihasilkan secara otomatis oleh Sistem TakoPOS.<br>
+          Dicetak dari aplikasi web kasir.
+        </div>
+
+        <script>
+          window.onload = () => {
+            // Memanggil fitur Print bawaan Browser (Bisa di-Save as PDF)
+            window.print();
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    setDailyReportModal(false);
+    showToast("Menyiapkan file PDF...");
   };
 
   // --- REUSABLE COMPONENTS ---
@@ -730,35 +1056,8 @@ export default function App() {
   ];
 
   // ==========================================
-  // RENDERER: LOGIN SCREEN & FIREBASE STATUS
+  // RENDERER: LOGIN SCREEN
   // ==========================================
-
-  if (firebaseError) {
-    return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-900 p-6 text-center">
-        <AlertCircle className="w-16 h-16 text-amber-500 mb-4" />
-        <h1 className="text-2xl font-black text-white mb-2">
-          Konfigurasi Cloud Diperlukan
-        </h1>
-        <p className="text-gray-400 text-sm max-w-md leading-relaxed">
-          Anda telah mengaktifkan mode <b>Penyimpanan Cloud</b>. Untuk
-          melanjutkan, masukkan konfigurasi Firebase (API Key, dll) di file{" "}
-          <code>App.jsx</code> pada baris ke-20.
-        </p>
-      </div>
-    );
-  }
-
-  if (!isDbReady) {
-    return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-900 p-6 text-center">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-gray-400 font-bold tracking-widest text-sm">
-          SINKRONISASI CLOUD DATABASE...
-        </p>
-      </div>
-    );
-  }
 
   if (!currentUser) {
     const LoginScreen = () => {
@@ -775,12 +1074,28 @@ export default function App() {
         <div className="min-h-[100dvh] flex items-center justify-center bg-gray-900 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDIiLz4KPC9zdmc+')] px-4 selection:bg-amber-500/30">
           <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 md:p-8 animate-in fade-in zoom-in-95 duration-500 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-400 to-orange-600"></div>
-            <div className="text-center mb-8 md:mb-10">
-              <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl mx-auto flex items-center justify-center shadow-xl shadow-gray-900/20 mb-4 md:mb-6 rotate-3">
-                <TrendingUp className="text-amber-400 w-8 h-8 md:w-10 md:h-10 -rotate-3" />
+
+            {!fbUser && (
+              <div className="absolute top-4 right-4 flex items-center gap-1.5 text-[9px] font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-md border border-orange-100">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>{" "}
+                Cloud Offline
               </div>
+            )}
+            {fbUser && (
+              <div className="absolute top-4 right-4 flex items-center gap-1.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{" "}
+                Cloud Aktif
+              </div>
+            )}
+
+            <div className="text-center mb-8 md:mb-10 mt-2">
+              <img
+                src="/logo.png"
+                alt="Logo Toko Safira"
+                className="w-16 h-16 md:w-20 md:h-20 mx-auto rounded-2xl shadow-xl mb-4 md:mb-6 object-contain bg-white"
+              />
               <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
-                TakoPOS
+                Toko SAFIRA
               </h1>
               <p className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1 md:mt-2">
                 Sistem Autentikasi
@@ -840,44 +1155,6 @@ export default function App() {
                 Sistem
               </button>
             </form>
-
-            <div className="mt-6 md:mt-8 bg-amber-50 p-3 md:p-4 rounded-xl border border-amber-100">
-              <p className="text-[10px] text-amber-800 font-bold uppercase tracking-widest text-center mb-2 md:mb-3">
-                Akun Demo
-              </p>
-              <div className="grid grid-cols-2 gap-2 md:gap-3 text-xs font-medium text-amber-900">
-                <div className="bg-white/60 p-2 rounded-lg text-center">
-                  <p className="font-bold mb-1">👑 Owner (Admin)</p>
-                  <p>
-                    User:{" "}
-                    <code className="bg-amber-200/50 px-1 rounded font-bold">
-                      admin
-                    </code>
-                  </p>
-                  <p>
-                    Pass:{" "}
-                    <code className="bg-amber-200/50 px-1 rounded font-bold">
-                      admin
-                    </code>
-                  </p>
-                </div>
-                <div className="bg-white/60 p-2 rounded-lg text-center">
-                  <p className="font-bold mb-1">🧑‍💼 Kasir</p>
-                  <p>
-                    User:{" "}
-                    <code className="bg-amber-200/50 px-1 rounded font-bold">
-                      kasir
-                    </code>
-                  </p>
-                  <p>
-                    Pass:{" "}
-                    <code className="bg-amber-200/50 px-1 rounded font-bold">
-                      123
-                    </code>
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
 
           {toast && (
@@ -953,7 +1230,7 @@ export default function App() {
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-500 font-medium">
-                  {formatWeight(item.weight)}{" "}
+                  {formatWeight(item.weight, item.isPiece)}{" "}
                   <span className="text-gray-300 mx-1">x</span>{" "}
                   {formatRp(item.pricePerGram)}
                 </span>
@@ -991,114 +1268,133 @@ export default function App() {
     </div>
   );
 
-  const renderPOS = () => (
-    <div className="flex h-full w-full gap-4 md:gap-6 relative">
-      <div className="flex-1 flex flex-col h-full min-w-0">
-        <div className="mb-4 relative shrink-0">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Cari varian tembakau..."
-            className="w-full pl-12 pr-4 py-3 md:py-3.5 rounded-2xl border-0 bg-white shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-amber-400 outline-none transition-all text-sm md:text-base"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 overflow-y-auto pb-6 custom-scrollbar content-start">
-          {filteredProducts.map((product) => (
-            <div
-              key={product.id}
-              onClick={() => handleOpenAddModal(product)}
-              className={`bg-white rounded-2xl border p-3 md:p-4 cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 relative flex flex-col h-full ${product.stockGrams <= 0 ? "border-red-200 opacity-60 grayscale-[0.5]" : "border-gray-100 hover:border-amber-400 shadow-sm"}`}
-            >
-              <div className="absolute top-0 right-0 bg-gray-100 text-gray-600 text-[9px] md:text-[10px] font-bold px-2 py-1 rounded-bl-xl rounded-tr-xl truncate max-w-[60%]">
-                {product.category}
-              </div>
-              <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-amber-50 to-orange-50 rounded-full flex items-center justify-center mb-2 md:mb-3 shrink-0">
-                <Package className="w-5 h-5 md:w-6 md:h-6 text-amber-600" />
-              </div>
-              <h3 className="font-bold text-gray-800 leading-snug mb-1 text-sm md:text-base line-clamp-2">
-                {product.name}
-              </h3>
-              <p className="text-amber-600 font-black text-sm md:text-base mb-2 md:mb-3 mt-auto">
-                {formatRp(product.pricePerGram)}{" "}
-                <span className="text-gray-400 text-[10px] md:text-xs font-normal">
-                  / gr
-                </span>
-              </p>
-              <div className="flex justify-between items-center pt-2 md:pt-3 border-t border-gray-100">
-                <span className="text-[10px] md:text-xs text-gray-500">
-                  Stok:
-                </span>
-                <span
-                  className={`text-xs md:text-sm font-bold ${product.stockGrams < 1000 ? "text-red-500" : "text-emerald-600"}`}
-                >
-                  {formatWeight(product.stockGrams)}
-                </span>
-              </div>
-            </div>
-          ))}
-          {filteredProducts.length === 0 && (
-            <div className="col-span-full py-10 text-center text-gray-500">
-              Pencarian tidak ditemukan.
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="hidden lg:flex w-96 flex-col shrink-0">
-        <CartContent isMobile={false} />
-      </div>
-
-      {cart.length > 0 && (
-        <div className="lg:hidden fixed bottom-[84px] left-4 right-4 z-30 animate-in slide-in-from-bottom-5">
-          <button
-            onClick={() => setIsMobileCartOpen(true)}
-            className="w-full bg-gray-900 text-white rounded-2xl p-3 shadow-2xl flex justify-between items-center border border-gray-800 active:scale-[0.98] transition-transform"
-          >
-            <div className="text-left flex items-center gap-3">
-              <div className="relative">
-                <ShoppingBag className="w-5 h-5 text-amber-400" />
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-gray-900">
-                  {cart.length}
-                </span>
-              </div>
-              <div>
-                <p className="text-[10px] text-gray-400 font-medium">
-                  Total Belanja
-                </p>
-                <p className="font-bold text-base leading-none mt-0.5">
-                  {formatRp(cartTotal)}
-                </p>
-              </div>
-            </div>
-            <div className="bg-amber-500 text-gray-900 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm shadow-amber-500/50">
-              Checkout
-            </div>
-          </button>
-        </div>
-      )}
-      {isMobileCartOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex items-end justify-center bg-gray-900/40 backdrop-blur-sm">
-          <div className="w-full h-[85dvh] animate-in slide-in-from-bottom-full duration-300">
-            <CartContent isMobile={true} />
+  const renderPOS = () => {
+    if (activeBranch === "all") {
+      return (
+        <div className="flex h-full w-full items-center justify-center">
+          <div className="text-center bg-white p-8 rounded-3xl border border-gray-200 shadow-sm max-w-sm">
+            <Store className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="font-black text-xl text-gray-900 mb-2">
+              Mode Semua Cabang Aktif
+            </h3>
+            <p className="text-sm text-gray-500">
+              Silakan pilih salah satu cabang spesifik di menu atas untuk
+              memulai transaksi kasir.
+            </p>
           </div>
         </div>
-      )}
-    </div>
-  );
+      );
+    }
+
+    return (
+      <div className="flex h-full w-full gap-4 md:gap-6 relative">
+        <div className="flex-1 flex flex-col h-full min-w-0">
+          <div className="mb-4 relative shrink-0">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Cari varian tembakau atau aksesoris..."
+              className="w-full pl-12 pr-4 py-3 md:py-3.5 rounded-2xl border-0 bg-white shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-amber-400 outline-none transition-all text-sm md:text-base"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 overflow-y-auto pb-6 custom-scrollbar content-start">
+            {filteredProducts.map((product) => (
+              <div
+                key={product.id}
+                onClick={() => handleOpenAddModal(product)}
+                className={`bg-white rounded-2xl border p-3 md:p-4 cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 relative flex flex-col h-full ${product.stockGrams <= 0 ? "border-red-200 opacity-60 grayscale-[0.5]" : "border-gray-100 hover:border-amber-400 shadow-sm"}`}
+              >
+                <div className="absolute top-0 right-0 bg-gray-100 text-gray-600 text-[9px] md:text-[10px] font-bold px-2 py-1 rounded-bl-xl rounded-tr-xl truncate max-w-[60%]">
+                  {product.category}
+                </div>
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-amber-50 to-orange-50 rounded-full flex items-center justify-center mb-2 md:mb-3 shrink-0">
+                  <Package className="w-5 h-5 md:w-6 md:h-6 text-amber-600" />
+                </div>
+                <h3 className="font-bold text-gray-800 leading-snug mb-1 text-sm md:text-base line-clamp-2">
+                  {product.name}
+                </h3>
+                <p className="text-amber-600 font-black text-sm md:text-base mb-2 md:mb-3 mt-auto">
+                  {formatRp(product.pricePerGram)}{" "}
+                  <span className="text-gray-400 text-[10px] md:text-xs font-normal">
+                    / {product.isPiece ? "pcs" : "gr"}
+                  </span>
+                </p>
+                <div className="flex justify-between items-center pt-2 md:pt-3 border-t border-gray-100">
+                  <span className="text-[10px] md:text-xs text-gray-500">
+                    Stok:
+                  </span>
+                  <span
+                    className={`text-xs md:text-sm font-bold ${product.stockGrams < (product.isPiece ? 10 : 1000) ? "text-red-500" : "text-emerald-600"}`}
+                  >
+                    {formatWeight(product.stockGrams, product.isPiece)}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {filteredProducts.length === 0 && (
+              <div className="col-span-full py-10 text-center text-gray-500">
+                Pencarian tidak ditemukan di cabang ini.
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="hidden lg:flex w-96 flex-col shrink-0">
+          <CartContent isMobile={false} />
+        </div>
+
+        {cart.length > 0 && (
+          <div className="lg:hidden fixed bottom-[84px] left-4 right-4 z-30 animate-in slide-in-from-bottom-5">
+            <button
+              onClick={() => setIsMobileCartOpen(true)}
+              className="w-full bg-gray-900 text-white rounded-2xl p-3 shadow-2xl flex justify-between items-center border border-gray-800 active:scale-[0.98] transition-transform"
+            >
+              <div className="text-left flex items-center gap-3">
+                <div className="relative">
+                  <ShoppingBag className="w-5 h-5 text-amber-400" />
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-gray-900">
+                    {cart.length}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 font-medium">
+                    Total Belanja
+                  </p>
+                  <p className="font-bold text-base leading-none mt-0.5">
+                    {formatRp(cartTotal)}
+                  </p>
+                </div>
+              </div>
+              <div className="bg-amber-500 text-gray-900 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm shadow-amber-500/50">
+                Checkout
+              </div>
+            </button>
+          </div>
+        )}
+        {isMobileCartOpen && (
+          <div className="lg:hidden fixed inset-0 z-50 flex items-end justify-center bg-gray-900/40 backdrop-blur-sm">
+            <div className="w-full h-[85dvh] animate-in slide-in-from-bottom-full duration-300">
+              <CartContent isMobile={true} />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderInventory = () => (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden relative">
       <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-gray-50/50 shrink-0">
         <div>
           <h2 className="text-lg md:text-xl font-bold text-gray-900">
-            Manajemen Gudang
+            Manajemen Gudang{" "}
+            {activeBranch !== "all" && `(${getBranchName(activeBranch)})`}
           </h2>
           <p className="text-xs md:text-sm text-gray-500">
-            Kontrol stok akurasi gram
+            Kontrol stok akurasi gram/satuan
           </p>
         </div>
-        {/* Tombol Tambah Produk HANYA untuk Owner */}
         {currentUser?.role === "Owner" && (
           <button
             onClick={handleOpenAddProduct}
@@ -1120,16 +1416,25 @@ export default function App() {
                 <th className="pb-3 px-2 text-sm font-bold text-gray-500">
                   Kategori
                 </th>
+                {activeBranch === "all" && (
+                  <th className="pb-3 px-2 text-sm font-bold text-gray-500">
+                    Lokasi Cabang
+                  </th>
+                )}
                 <th className="pb-3 px-2 text-sm font-bold text-gray-500 text-right">
-                  Harga/Gr
+                  Harga Jual
                 </th>
+                {currentUser?.role === "Owner" && (
+                  <th className="pb-3 px-2 text-sm font-bold text-gray-500 text-right">
+                    Harga Kulak
+                  </th>
+                )}
                 <th className="pb-3 px-2 text-sm font-bold text-gray-500 text-right">
                   Stok Aktual
                 </th>
                 <th className="pb-3 px-2 text-sm font-bold text-gray-500 text-center">
                   Status
                 </th>
-                {/* Kolom Aksi HANYA untuk Owner */}
                 {currentUser?.role === "Owner" && (
                   <th className="pb-3 px-2 text-sm font-bold text-gray-500 text-right">
                     Aksi
@@ -1138,7 +1443,7 @@ export default function App() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {inventory.map((item) => (
+              {branchInventory.map((item) => (
                 <tr
                   key={item.id}
                   className="hover:bg-gray-50/50 group transition-colors"
@@ -1149,19 +1454,29 @@ export default function App() {
                   <td className="py-4 px-2 text-sm text-gray-500">
                     {item.category}
                   </td>
+                  {activeBranch === "all" && (
+                    <td className="py-4 px-2 text-xs font-bold text-blue-600 bg-blue-50/30 rounded-lg">
+                      {getBranchName(item.branchId)}
+                    </td>
+                  )}
                   <td className="py-4 px-2 text-sm font-semibold text-gray-700 text-right">
                     {formatRp(item.pricePerGram)}
+                    <span className="text-[10px] text-gray-400 font-normal">
+                      /{item.isPiece ? "pcs" : "gr"}
+                    </span>
                   </td>
+                  {currentUser?.role === "Owner" && (
+                    <td className="py-4 px-2 text-sm font-semibold text-gray-500 text-right">
+                      {formatRp(item.costPerGram || 0)}
+                    </td>
+                  )}
                   <td className="py-4 px-2 text-right">
                     <div className="font-black text-gray-900">
-                      {formatWeight(item.stockGrams)}
-                    </div>
-                    <div className="text-[10px] font-medium text-gray-400">
-                      {item.stockGrams} gr
+                      {formatWeight(item.stockGrams, item.isPiece)}
                     </div>
                   </td>
                   <td className="py-4 px-2 text-center">
-                    {item.stockGrams > 2000 ? (
+                    {item.stockGrams > (item.isPiece ? 20 : 2000) ? (
                       <span className="bg-emerald-100 text-emerald-700 py-1 px-3 rounded-md text-xs font-bold">
                         Aman
                       </span>
@@ -1176,7 +1491,6 @@ export default function App() {
                     )}
                   </td>
 
-                  {/* Tombol Aksi HANYA untuk Owner */}
                   {currentUser?.role === "Owner" && (
                     <td className="py-4 px-2 text-right">
                       <div className="flex justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
@@ -1200,10 +1514,18 @@ export default function App() {
                   )}
                 </tr>
               ))}
-              {inventory.length === 0 && (
+              {branchInventory.length === 0 && (
                 <tr>
                   <td
-                    colSpan={currentUser?.role === "Owner" ? "6" : "5"}
+                    colSpan={
+                      activeBranch === "all"
+                        ? currentUser?.role === "Owner"
+                          ? "8"
+                          : "6"
+                        : currentUser?.role === "Owner"
+                          ? "7"
+                          : "5"
+                    }
                     className="py-10 text-center text-gray-500"
                   >
                     Gudang kosong.
@@ -1214,7 +1536,7 @@ export default function App() {
           </table>
         </div>
         <div className="md:hidden space-y-3">
-          {inventory.map((item) => (
+          {branchInventory.map((item) => (
             <div
               key={item.id}
               className="bg-white p-3.5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3"
@@ -1224,11 +1546,18 @@ export default function App() {
                   <h3 className="font-bold text-gray-900 leading-tight mb-1 text-sm">
                     {item.name}
                   </h3>
-                  <span className="text-[9px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md font-semibold">
-                    {item.category}
-                  </span>
+                  <div className="flex gap-1.5">
+                    <span className="text-[9px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md font-semibold">
+                      {item.category}
+                    </span>
+                    {activeBranch === "all" && (
+                      <span className="text-[9px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md font-bold">
+                        {getBranchName(item.branchId)}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {item.stockGrams > 2000 ? (
+                {item.stockGrams > (item.isPiece ? 20 : 2000) ? (
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] mt-1"></div>
                 ) : item.stockGrams > 0 ? (
                   <div className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)] mt-1"></div>
@@ -1239,26 +1568,38 @@ export default function App() {
               <div className="flex items-end justify-between bg-gray-50 p-2.5 rounded-xl border border-gray-100/50">
                 <div>
                   <p className="text-[9px] text-gray-500 font-semibold mb-0.5">
-                    Harga
+                    Harga Jual
                   </p>
                   <p className="font-bold text-sm text-gray-800">
                     {formatRp(item.pricePerGram)}
                     <span className="text-[9px] font-normal text-gray-400">
-                      /gr
+                      /{item.isPiece ? "pcs" : "gr"}
                     </span>
                   </p>
                 </div>
+                {currentUser?.role === "Owner" && (
+                  <div>
+                    <p className="text-[9px] text-gray-500 font-semibold mb-0.5">
+                      Harga Kulak
+                    </p>
+                    <p className="font-bold text-sm text-amber-700">
+                      {formatRp(item.costPerGram || 0)}
+                      <span className="text-[9px] font-normal text-gray-400">
+                        /{item.isPiece ? "pcs" : "gr"}
+                      </span>
+                    </p>
+                  </div>
+                )}
                 <div className="text-right">
                   <p className="text-[9px] text-gray-500 font-semibold mb-0.5">
                     Stok
                   </p>
                   <p className="font-black text-gray-900 text-sm">
-                    {formatWeight(item.stockGrams)}
+                    {formatWeight(item.stockGrams, item.isPiece)}
                   </p>
                 </div>
               </div>
 
-              {/* Tombol Edit/Delete Mobile HANYA untuk Owner */}
               {currentUser?.role === "Owner" && (
                 <div className="flex gap-2">
                   <button
@@ -1280,10 +1621,12 @@ export default function App() {
               )}
             </div>
           ))}
-          {inventory.length === 0 && (
+          {branchInventory.length === 0 && (
             <div className="py-10 text-center text-gray-500 bg-white rounded-2xl border border-dashed border-gray-300">
               <Package className="w-10 h-10 mx-auto text-gray-300 mb-2" />
-              <p className="text-sm font-medium">Gudang kosong.</p>
+              <p className="text-sm font-medium">
+                Gudang kosong di cabang ini.
+              </p>
             </div>
           )}
         </div>
@@ -1293,49 +1636,78 @@ export default function App() {
 
   const renderHistory = () => (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
-      <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col gap-3 md:gap-4 bg-gray-50/50 shrink-0">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div>
-            <h2 className="text-lg md:text-xl font-bold text-gray-900">
-              Laporan Penjualan
-            </h2>
-            <p className="text-xs md:text-sm text-gray-500">
-              Pilih bulan untuk melihat riwayat
-            </p>
-          </div>
-          <div className="flex flex-row items-center gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-48">
+      <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 md:gap-4 bg-gray-50/50 shrink-0">
+        <div>
+          <h2 className="text-lg md:text-xl font-bold text-gray-900">
+            Laporan Penjualan{" "}
+            {activeBranch !== "all" && `(${getBranchName(activeBranch)})`}
+          </h2>
+          <p className="text-xs md:text-sm text-gray-500">
+            Pilih periode untuk melihat riwayat
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full xl:w-auto">
+          <div className="flex gap-2 w-full sm:w-auto flex-1">
+            {currentUser?.role === "Owner" && (
+              <div className="relative w-1/3 sm:w-32 shrink-0">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <select
+                  value={filterMode}
+                  onChange={(e) => handleFilterModeChange(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 md:py-2.5 bg-white border border-gray-200 rounded-xl text-xs md:text-sm font-bold text-gray-700 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 appearance-none shadow-sm cursor-pointer min-h-[40px] md:min-h-[44px]"
+                >
+                  <option value="day">Harian</option>
+                  <option value="month">Bulanan</option>
+                  <option value="year">Tahunan</option>
+                </select>
+              </div>
+            )}
+
+            <div
+              className={`relative ${currentUser?.role === "Owner" ? "flex-1 sm:w-48" : "w-full"}`}
+            >
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <select
-                value={selectedMonthYear}
-                onChange={(e) => setSelectedMonthYear(e.target.value)}
+                value={selectedFilterValue}
+                onChange={(e) => setSelectedFilterValue(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 md:py-2.5 bg-white border border-gray-200 rounded-xl text-xs md:text-sm font-bold text-gray-700 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 appearance-none shadow-sm cursor-pointer min-h-[40px] md:min-h-[44px]"
               >
-                {availableMonths.map((month) => (
-                  <option key={month} value={month}>
-                    {formatMonthName(month)}
+                {availableOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {formatFilterLabel(opt, filterMode)}
                   </option>
                 ))}
               </select>
             </div>
-            {/* Hanya Owner yang bisa export */}
-            {currentUser?.role === "Owner" && (
-              <button
-                onClick={handleExportExcel}
-                disabled={filteredHistory.length === 0}
-                className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center justify-center gap-1.5 md:gap-2 transition-colors shadow-sm active:scale-95 shrink-0 min-h-[40px] md:min-h-[44px]"
-              >
-                <Download className="w-4 h-4 shrink-0" />
-                <span className="hidden md:inline whitespace-nowrap">
-                  Export Excel (CSV)
-                </span>
-                <span className="md:hidden whitespace-nowrap">Export</span>
-              </button>
-            )}
           </div>
+
+          {currentUser?.role === "Owner" && (
+            <button
+              onClick={handleExportExcel}
+              disabled={filteredHistory.length === 0}
+              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm active:scale-95 shrink-0 min-h-[40px] md:min-h-[44px]"
+            >
+              <Download className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">Export (CSV)</span>
+            </button>
+          )}
+
+          {currentUser?.role !== "Owner" && (
+            <button
+              onClick={() => setDailyReportModal(true)}
+              disabled={filteredHistory.length === 0}
+              className="w-full sm:w-auto bg-gray-900 hover:bg-black disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm active:scale-95 shrink-0 min-h-[40px] md:min-h-[44px]"
+            >
+              <FileText className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">Buat PDF Laporan</span>
+            </button>
+          )}
         </div>
-        {/* Hanya Owner yang bisa melihat total transaksi dan pendapatan */}
-        {currentUser?.role === "Owner" && (
+      </div>
+
+      <div className="p-4 md:p-6 bg-white border-b border-gray-100 shrink-0">
+        {currentUser?.role === "Owner" ? (
           <div className="flex gap-2 md:gap-4 w-full overflow-x-auto pb-1 hide-scrollbar">
             <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-left min-w-[120px] md:min-w-[140px] flex-1 sm:flex-none">
               <p className="text-[9px] md:text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-0.5">
@@ -1347,7 +1719,7 @@ export default function App() {
             </div>
             <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-left min-w-[140px] md:min-w-[160px] flex-1 sm:flex-none">
               <p className="text-[9px] md:text-[10px] text-emerald-600 font-bold uppercase tracking-wider mb-0.5">
-                Pendapatan
+                Pendapatan Jual
               </p>
               <p className="text-lg md:text-xl font-black text-emerald-900">
                 {formatRp(
@@ -1355,15 +1727,50 @@ export default function App() {
                 )}
               </p>
             </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-left min-w-[140px] md:min-w-[160px] flex-1 sm:flex-none">
+              <p className="text-[9px] md:text-[10px] text-amber-600 font-bold uppercase tracking-wider mb-0.5">
+                Keuntungan Bersih
+              </p>
+              <p className="text-lg md:text-xl font-black text-amber-900">
+                {formatRp(
+                  filteredHistory.reduce((acc, curr) => {
+                    const trxCost =
+                      curr.totalCost !== undefined
+                        ? curr.totalCost
+                        : curr.items.reduce(
+                            (sum, item) =>
+                              sum + (item.costPerGram || 0) * item.weight,
+                            0,
+                          );
+                    const trxProfit =
+                      curr.profit !== undefined
+                        ? curr.profit
+                        : curr.total - trxCost;
+                    return acc + trxProfit;
+                  }, 0),
+                )}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-left w-max">
+            <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-0.5">
+              Total Transaksi Hari Ini
+            </p>
+            <p className="text-xl font-black text-blue-900">
+              {filteredHistory.length}
+            </p>
           </div>
         )}
       </div>
+
       <div className="flex-1 overflow-y-auto custom-scrollbar p-3 md:p-6 bg-slate-50 md:bg-white space-y-3 md:space-y-4 pb-6">
         {filteredHistory.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 py-20">
             <Receipt className="w-12 h-12 md:w-16 md:h-16 opacity-20 mb-3 md:mb-4" />
             <p className="font-medium text-xs md:text-sm">
-              Tidak ada transaksi pada {formatMonthName(selectedMonthYear)}.
+              Tidak ada transaksi pada{" "}
+              {formatFilterLabel(selectedFilterValue, filterMode)}.
             </p>
           </div>
         ) : (
@@ -1390,6 +1797,12 @@ export default function App() {
                       {trx.cashier}
                     </span>
                   )}
+                  {activeBranch === "all" && (
+                    <span className="text-[9px] md:text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 md:px-2 md:py-1 rounded-md font-bold">
+                      <MapPin className="inline w-3 h-3 mr-0.5" />{" "}
+                      {getBranchName(trx.branchId)}
+                    </span>
+                  )}
                 </div>
                 <ul className="space-y-1.5 md:space-y-2">
                   {trx.items.map((item, idx) => (
@@ -1404,7 +1817,7 @@ export default function App() {
                         </span>
                       </div>
                       <span className="font-mono text-gray-500 bg-white px-1.5 py-0.5 rounded border border-gray-100">
-                        {formatWeight(item.weight)}
+                        {formatWeight(item.weight, item.isPiece)}
                       </span>
                     </li>
                   ))}
@@ -1419,24 +1832,24 @@ export default function App() {
                     {formatRp(trx.total)}
                   </p>
                 </div>
-                <div className="flex gap-2 mt-3 md:mt-4">
-                  <button
-                    onClick={() => setReceiptModal(trx)}
-                    className="flex-1 bg-gray-900 text-white text-xs md:text-sm font-bold py-2 md:py-2.5 rounded-xl hover:bg-gray-800 transition-colors flex justify-center items-center gap-1.5 md:gap-2 active:scale-95 min-h-[40px] md:min-h-[44px]"
-                  >
-                    <Printer className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />{" "}
-                    <span className="whitespace-nowrap">Cetak</span>
-                  </button>
-                  {/* Tombol Hapus Transaksi Khusus Owner */}
-                  {currentUser?.role === "Owner" && (
+
+                {currentUser?.role === "Owner" && (
+                  <div className="flex gap-2 mt-3 md:mt-4">
+                    <button
+                      onClick={() => setReceiptModal(trx)}
+                      className="flex-1 bg-gray-900 text-white text-xs md:text-sm font-bold py-2 md:py-2.5 rounded-xl hover:bg-gray-800 transition-colors flex justify-center items-center gap-1.5 md:gap-2 active:scale-95 min-h-[40px] md:min-h-[44px]"
+                    >
+                      <Printer className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />{" "}
+                      <span className="whitespace-nowrap">Cetak</span>
+                    </button>
                     <button
                       onClick={() => setConfirmDeleteTransactionId(trx.id)}
                       className="bg-red-50 text-red-600 px-3 md:px-4 text-xs md:text-sm font-bold py-2 md:py-2.5 rounded-xl hover:bg-red-100 hover:text-red-700 transition-colors flex justify-center items-center active:scale-95 min-h-[40px] md:min-h-[44px]"
                     >
                       <Trash2 className="w-4 h-4 shrink-0" />
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           ))
@@ -1452,18 +1865,40 @@ export default function App() {
         <div className="w-full max-w-7xl mx-auto px-4 md:px-6">
           <div className="flex flex-row justify-between items-center py-2.5 md:py-3 sm:h-16 gap-3 sm:gap-0">
             <div className="flex items-center gap-2.5 md:gap-3">
-              <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg md:rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
-                <TrendingUp className="text-white w-4 h-4 md:w-5 md:h-5" />
-              </div>
+              <img
+                src="/logo.png"
+                alt="Logo Toko Safira"
+                className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl shadow-sm shrink-0 object-contain bg-white"
+              />
               <div>
                 <h1 className="font-black text-lg md:text-xl text-gray-900 leading-none tracking-tight">
-                  TakoPOS
+                  Toko SAFIRA
                 </h1>
                 <p className="text-[8px] md:text-[9px] font-bold text-gray-500 uppercase tracking-[0.2em] mt-0.5">
                   Sistem Tembakau
                 </p>
               </div>
             </div>
+
+            {/* SELEKTOR CABANG (KHUSUS OWNER) */}
+            {currentUser?.role === "Owner" && (
+              <div className="hidden sm:flex relative items-center ml-4 shrink-0">
+                <MapPin className="absolute left-3 w-4 h-4 text-amber-600 z-10" />
+                <select
+                  value={activeBranch}
+                  onChange={(e) => setActiveBranch(e.target.value)}
+                  className="pl-9 pr-8 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-500/20 appearance-none shadow-sm cursor-pointer hover:bg-amber-100 transition-colors"
+                >
+                  <option value="all">🌍 Semua Cabang</option>
+                  {BRANCHES.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      📍 {b.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronUp className="absolute right-3 w-4 h-4 text-amber-600 rotate-180 pointer-events-none" />
+              </div>
+            )}
 
             <nav className="hidden md:flex bg-gray-100/80 p-1.5 rounded-xl shadow-inner mx-4">
               {NavItems.map((tab) => (
@@ -1489,7 +1924,9 @@ export default function App() {
                   {currentUser.name}
                 </p>
                 <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">
-                  {currentUser.role}
+                  {currentUser.role}{" "}
+                  {currentUser.role !== "Owner" &&
+                    `• ${getBranchName(currentUser.branchId)}`}
                 </p>
               </div>
               <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gray-900 text-white flex items-center justify-center shadow-md border border-white text-xs md:text-sm font-black uppercase">
@@ -1499,6 +1936,28 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* FILTER CABANG MOBILE (KHUSUS OWNER) */}
+      {currentUser?.role === "Owner" && (
+        <div className="sm:hidden px-4 py-2 bg-white border-b border-gray-200 z-10">
+          <div className="relative">
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-600 z-10" />
+            <select
+              value={activeBranch}
+              onChange={(e) => setActiveBranch(e.target.value)}
+              className="w-full pl-9 pr-8 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-500/20 appearance-none shadow-sm cursor-pointer"
+            >
+              <option value="all">🌍 Tampilkan Semua Cabang</option>
+              {BRANCHES.map((b) => (
+                <option key={b.id} value={b.id}>
+                  📍 Cabang {b.name}
+                </option>
+              ))}
+            </select>
+            <ChevronUp className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-600 rotate-180 pointer-events-none" />
+          </div>
+        </div>
+      )}
 
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 overflow-hidden relative max-w-7xl mx-auto w-full p-2 md:p-4 lg:p-6 pb-[72px] md:pb-6">
@@ -1540,8 +1999,8 @@ export default function App() {
 
       {/* Modal 0: PROFILE & TEAM MANAGEMENT */}
       {profileModal && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-end lg:items-center justify-center z-[70] p-4">
-          <div className="bg-white rounded-t-3xl lg:rounded-3xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-5 lg:zoom-in-95 duration-200 overflow-hidden pb-safe max-h-[90dvh] flex flex-col">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden pb-safe max-h-[90dvh] flex flex-col">
             <div className="bg-gray-900 p-5 md:p-6 text-center relative shrink-0">
               <button
                 onClick={() => {
@@ -1559,7 +2018,9 @@ export default function App() {
                 {currentUser.name}
               </h3>
               <span className="inline-block mt-2 px-2.5 py-0.5 bg-amber-500 text-gray-900 text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-full">
-                {currentUser.role}
+                {currentUser.role}{" "}
+                {currentUser.role !== "Owner" &&
+                  `| ${getBranchName(currentUser.branchId)}`}
               </span>
             </div>
 
@@ -1684,7 +2145,9 @@ export default function App() {
                                         : "text-amber-600"
                                     }
                                   >
-                                    {u.role}
+                                    {u.role === "Owner"
+                                      ? "Owner"
+                                      : getBranchName(u.branchId)}
                                   </span>
                                 </p>
                               </div>
@@ -1754,6 +2217,29 @@ export default function App() {
                           }
                           className="w-full p-2.5 md:p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none text-xs md:text-sm font-bold transition-all"
                         />
+
+                        {/* Pilihan Cabang Untuk Kasir Baru */}
+                        <div className="relative">
+                          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <select
+                            required
+                            value={newUser.branchId}
+                            onChange={(e) =>
+                              setNewUser({
+                                ...newUser,
+                                branchId: e.target.value,
+                              })
+                            }
+                            className="w-full pl-9 p-2.5 md:p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none text-xs md:text-sm font-bold transition-all appearance-none"
+                          >
+                            {BRANCHES.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                Tugaskan di: {b.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
                         <button
                           type="submit"
                           className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 md:py-3.5 rounded-xl transition-colors text-xs md:text-sm mt-1 md:mt-2 shadow-lg shadow-emerald-600/20 min-h-[44px]"
@@ -1770,20 +2256,19 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal 1: Add to Cart (Diubah max-w-md menjadi max-w-sm agar lebih proporsional) */}
+      {/* Modal 1: Add to Cart */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-end lg:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-t-3xl lg:rounded-3xl w-full max-w-sm shadow-2xl animate-in slide-in-from-bottom-5 lg:zoom-in-95 duration-200 max-h-[90dvh] flex flex-col overflow-hidden">
-            {/* Header Modal */}
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90dvh] flex flex-col overflow-hidden">
             <div className="p-5 md:p-6 pb-2 shrink-0">
-              <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-5 lg:hidden shrink-0"></div>
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="text-lg md:text-xl font-black text-gray-900 leading-tight">
                     {selectedProduct.name}
                   </h3>
                   <p className="text-sm md:text-base text-amber-600 font-bold mt-0.5 md:mt-1">
-                    {formatRp(selectedProduct.pricePerGram)} / gram
+                    {formatRp(selectedProduct.pricePerGram)} /{" "}
+                    {selectedProduct.isPiece ? "pcs" : "gram"}
                   </p>
                 </div>
                 <button
@@ -1798,15 +2283,17 @@ export default function App() {
                   Sisa Stok Gudang
                 </span>
                 <span className="font-black text-base md:text-lg text-amber-900 bg-amber-100/50 px-2.5 py-1 rounded-lg">
-                  {formatWeight(selectedProduct.stockGrams)}
+                  {formatWeight(
+                    selectedProduct.stockGrams,
+                    selectedProduct.isPiece,
+                  )}
                 </span>
               </div>
             </div>
-
-            {/* Konten Scroll Modal */}
             <div className="px-5 md:px-6 py-2 overflow-y-auto custom-scrollbar flex-1">
               <label className="block text-xs md:text-sm font-bold text-gray-700 mb-3">
-                Tentukan Berat (Gram)
+                Tentukan {selectedProduct.isPiece ? "Jumlah" : "Berat"} (
+                {selectedProduct.isPiece ? "Pcs" : "Gram"})
               </label>
               <div className="relative mb-4">
                 <input
@@ -1818,23 +2305,23 @@ export default function App() {
                   placeholder="0"
                 />
                 <span className="absolute right-4 md:right-5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-base md:text-lg">
-                  gr
+                  {selectedProduct.isPiece ? "pcs" : "gr"}
                 </span>
               </div>
-              <div className="grid grid-cols-4 gap-1.5 md:gap-2 mb-2">
-                {[50, 100, 250, 500].map((w) => (
-                  <button
-                    key={w}
-                    onClick={() => setWeightInput(w.toString())}
-                    className="py-2.5 md:py-3 bg-white border border-gray-200 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 rounded-xl text-xs md:text-sm font-black text-gray-600 transition-colors shadow-sm active:scale-95"
-                  >
-                    +{w}
-                  </button>
-                ))}
-              </div>
+              {!selectedProduct.isPiece && (
+                <div className="grid grid-cols-4 gap-1.5 md:gap-2 mb-2">
+                  {[50, 100, 250, 500].map((w) => (
+                    <button
+                      key={w}
+                      onClick={() => setWeightInput(w.toString())}
+                      className="py-2.5 md:py-3 bg-white border border-gray-200 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 rounded-xl text-xs md:text-sm font-black text-gray-600 transition-colors shadow-sm active:scale-95"
+                    >
+                      +{w}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-
-            {/* Footer Modal (Tombol Statis) */}
             <div className="p-5 md:p-6 pt-4 border-t border-gray-100 shrink-0 bg-white">
               <button
                 onClick={handleAddToCart}
@@ -1848,13 +2335,11 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal 2: Checkout (Diubah max-w-md menjadi max-w-sm agar proporsional) */}
+      {/* Modal 2: Checkout */}
       {checkoutModal && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-end lg:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-t-3xl lg:rounded-3xl w-full max-w-sm shadow-2xl animate-in slide-in-from-bottom-5 lg:zoom-in-95 duration-200 max-h-[90dvh] flex flex-col overflow-hidden">
-            {/* Header Modal */}
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90dvh] flex flex-col overflow-hidden">
             <div className="p-5 md:p-6 pb-2 shrink-0">
-              <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-5 lg:hidden shrink-0"></div>
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-xl md:text-2xl font-black text-gray-900">
                   Pembayaran
@@ -1867,8 +2352,6 @@ export default function App() {
                 </button>
               </div>
             </div>
-
-            {/* Konten Scroll Modal */}
             <div className="px-5 md:px-6 py-2 overflow-y-auto custom-scrollbar flex-1">
               <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-5 md:p-6 rounded-2xl mb-5 text-center shadow-inner relative overflow-hidden shrink-0">
                 <div className="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')] opacity-20"></div>
@@ -1912,8 +2395,6 @@ export default function App() {
                   )}
               </div>
             </div>
-
-            {/* Footer Modal (Tombol Statis) */}
             <div className="p-5 md:p-6 pt-4 border-t border-gray-100 shrink-0 bg-white">
               <button
                 onClick={handleProcessPayment}
@@ -1928,7 +2409,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal 3: Receipt (Diubah ukurannya meniru kertas struk thermal asli) */}
+      {/* Modal 3: Receipt (KHUSUS OWNER) */}
       {receiptModal && (
         <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="relative animate-in zoom-in-95 duration-300 w-full max-w-[340px]">
@@ -1940,13 +2421,12 @@ export default function App() {
             </button>
 
             <div className="bg-white w-full rounded-xl shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden">
-              {/* Header Struk */}
               <div className="p-5 md:p-6 pb-4 shrink-0 text-center border-b-2 border-dashed border-gray-300">
                 <div className="w-12 h-12 bg-gray-900 rounded-xl mx-auto mb-3 flex items-center justify-center">
                   <Receipt className="text-white w-6 h-6" />
                 </div>
                 <h2 className="font-black text-2xl text-gray-900 tracking-tight">
-                  TakoPOS
+                  Toko SAFIRA
                 </h2>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">
                   Struk Pembelian
@@ -1958,8 +2438,6 @@ export default function App() {
                   </span>
                 </div>
               </div>
-
-              {/* Items Struk (Scrollable) */}
               <div className="px-5 md:px-6 py-4 overflow-y-auto custom-scrollbar flex-1">
                 <div className="space-y-3">
                   {receiptModal.items.map((item, idx) => (
@@ -1972,7 +2450,7 @@ export default function App() {
                           {item.name}
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5 font-medium">
-                          {formatWeight(item.weight)}{" "}
+                          {formatWeight(item.weight, item.isPiece)}{" "}
                           <span className="mx-1 text-gray-300">x</span>{" "}
                           {formatRp(item.pricePerGram)}
                         </p>
@@ -1984,8 +2462,6 @@ export default function App() {
                   ))}
                 </div>
               </div>
-
-              {/* Footer Struk & Tombol */}
               <div className="p-5 md:p-6 pt-0 shrink-0">
                 <div className="space-y-2 mb-5 bg-gray-50 p-4 rounded-xl border border-gray-100">
                   <div className="flex justify-between font-black text-lg text-gray-900 mb-2 pb-2 border-b border-gray-200">
@@ -2001,8 +2477,11 @@ export default function App() {
                     <span>{formatRp(receiptModal.change)}</span>
                   </div>
                   <div className="flex justify-between text-[10px] text-gray-400 font-medium mt-3 pt-3 border-t border-gray-200 border-dashed">
-                    <span>Kasir Bertugas:</span>
-                    <span>{receiptModal.cashier}</span>
+                    <span>Kasir:</span>
+                    <span>
+                      {receiptModal.cashier} (
+                      {getBranchName(receiptModal.branchId)})
+                    </span>
                   </div>
                 </div>
                 <button
@@ -2023,11 +2502,9 @@ export default function App() {
 
       {/* Modal 4: Edit/Add Inventory */}
       {editingProduct && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-end lg:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-t-3xl lg:rounded-3xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-5 lg:zoom-in-95 duration-200 max-h-[90dvh] flex flex-col overflow-hidden">
-            {/* Header */}
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90dvh] flex flex-col overflow-hidden">
             <div className="p-4 md:p-6 pb-2 shrink-0">
-              <div className="w-10 h-1.5 bg-gray-200 rounded-full mx-auto mb-4 md:mb-6 lg:hidden shrink-0"></div>
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-xl md:text-2xl font-black text-gray-900">
                   {isAddingNew ? "Tambah Produk Baru" : "Edit Data Produk"}
@@ -2049,12 +2526,36 @@ export default function App() {
               )}
             </div>
 
-            {/* Scrollable Content */}
             <div className="px-4 md:px-6 py-2 overflow-y-auto custom-scrollbar flex-1">
               <div className="space-y-4 md:space-y-5 mb-4">
+                {/* Pemilihan Cabang (Khusus Jika Menambah di Mode "Semua Cabang") */}
+                {isAddingNew && activeBranch === "all" && (
+                  <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
+                    <label className="block text-xs md:text-sm font-bold text-blue-900 mb-1.5">
+                      Lokasi Simpan Produk
+                    </label>
+                    <select
+                      value={editingProduct.branchId}
+                      onChange={(e) =>
+                        setEditingProduct({
+                          ...editingProduct,
+                          branchId: e.target.value,
+                        })
+                      }
+                      className="w-full p-2.5 bg-white border border-blue-200 rounded-lg text-sm font-bold text-blue-800 outline-none"
+                    >
+                      {BRANCHES.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs md:text-sm font-bold text-gray-700 mb-1.5 md:mb-2">
-                    Nama Tembakau
+                    Nama Barang
                   </label>
                   <input
                     type="text"
@@ -2069,55 +2570,108 @@ export default function App() {
                     }
                   />
                 </div>
-                <div>
-                  <label className="block text-xs md:text-sm font-bold text-gray-700 mb-1.5 md:mb-2">
-                    Kategori
-                  </label>
-                  <select
-                    className="w-full p-3 md:p-4 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 outline-none font-bold text-sm md:text-base transition-all bg-white"
-                    value={editingProduct.category}
-                    onChange={(e) =>
-                      setEditingProduct({
-                        ...editingProduct,
-                        category: e.target.value,
-                      })
-                    }
-                  >
-                    <option value="Nusantara">Nusantara</option>
-                    <option value="Import Blend">Import Blend</option>
-                    <option value="Premium">Premium</option>
-                    <option value="Aksesoris">Aksesoris</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs md:text-sm font-bold text-gray-700 mb-1.5 md:mb-2">
-                    Harga per Gram (Rp)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 md:left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm md:text-base">
-                      Rp
-                    </span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      className="w-full py-3 md:py-4 pl-10 md:pl-12 pr-4 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 outline-none font-bold text-base md:text-lg transition-all"
-                      value={editingProduct.pricePerGram || ""}
-                      placeholder="0"
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs md:text-sm font-bold text-gray-700 mb-1.5 md:mb-2">
+                      Kategori
+                    </label>
+                    <select
+                      className="w-full p-3 md:p-4 border-2 border-gray-200 rounded-xl focus:border-amber-500 outline-none font-bold text-sm md:text-base transition-all bg-white"
+                      value={editingProduct.category}
                       onChange={(e) =>
                         setEditingProduct({
                           ...editingProduct,
-                          pricePerGram: parseInt(e.target.value) || 0,
+                          category: e.target.value,
                         })
                       }
-                    />
+                    >
+                      <option value="Nusantara">Nusantara</option>
+                      <option value="Import Blend">Import Blend</option>
+                      <option value="Premium">Premium</option>
+                      <option value="Aksesoris">Aksesoris</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs md:text-sm font-bold text-gray-700 mb-1.5 md:mb-2">
+                      Tipe Jual
+                    </label>
+                    <select
+                      className="w-full p-3 md:p-4 border-2 border-gray-200 rounded-xl focus:border-amber-500 outline-none font-bold text-sm md:text-base transition-all bg-white"
+                      value={editingProduct.isPiece ? "true" : "false"}
+                      onChange={(e) =>
+                        setEditingProduct({
+                          ...editingProduct,
+                          isPiece: e.target.value === "true",
+                        })
+                      }
+                    >
+                      <option value="false">Timbang (Gram)</option>
+                      <option value="true">Satuan (Pcs)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] md:text-xs font-bold text-gray-700 mb-1.5">
+                      Harga Jual / {editingProduct.isPiece ? "Pcs" : "Gr"}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs md:text-sm">
+                        Rp
+                      </span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        className="w-full py-2.5 md:py-3 pl-8 md:pl-9 pr-3 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 outline-none font-bold text-sm md:text-base transition-all"
+                        value={editingProduct.pricePerGram || ""}
+                        placeholder="0"
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            pricePerGram: parseInt(e.target.value) || 0,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] md:text-xs font-bold text-gray-700 mb-1.5">
+                      Harga Kulak / {editingProduct.isPiece ? "Pcs" : "Gr"}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs md:text-sm">
+                        Rp
+                      </span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        className="w-full py-2.5 md:py-3 pl-8 md:pl-9 pr-3 border-2 border-gray-200 rounded-xl focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 outline-none font-bold text-sm md:text-base transition-all"
+                        value={editingProduct.costPerGram || ""}
+                        placeholder="0"
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            costPerGram: parseInt(e.target.value) || 0,
+                          })
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs md:text-sm font-bold text-gray-700 mb-1.5 md:mb-2 flex justify-between items-end">
-                    <span>Stok Fisik (Gram)</span>
+                    <span>
+                      Stok Fisik ({editingProduct.isPiece ? "Pcs" : "Gram"})
+                    </span>
                     {!isAddingNew && (
                       <span className="text-[10px] md:text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded font-bold">
-                        Aktual: {formatWeight(editingProduct.stockGrams || 0)}
+                        Aktual:{" "}
+                        {formatWeight(
+                          editingProduct.stockGrams || 0,
+                          editingProduct.isPiece,
+                        )}
                       </span>
                     )}
                   </label>
@@ -2138,7 +2692,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Footer */}
             <div className="p-4 md:p-6 pt-4 border-t border-gray-100 shrink-0 bg-white">
               <button
                 onClick={handleSaveInventory}
@@ -2218,7 +2771,111 @@ export default function App() {
         </div>
       )}
 
-      {/* GLOBAL TOAST NOTIFICATION */}
+      {/* Modal 7: Cetak Laporan Harian (KHUSUS KASIR) */}
+      {dailyReportModal && (
+        <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="relative animate-in zoom-in-95 duration-300 w-full max-w-[340px]">
+            <button
+              onClick={() => setDailyReportModal(false)}
+              className="absolute -top-4 -right-4 text-gray-500 bg-white hover:bg-gray-100 hover:text-gray-800 rounded-full p-2 shadow-xl border border-gray-200 transition-colors z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="bg-white w-full rounded-xl shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden">
+              <div className="p-5 md:p-6 pb-4 shrink-0 text-center border-b-2 border-dashed border-gray-300">
+                <div className="w-12 h-12 bg-gray-900 rounded-xl mx-auto mb-3 flex items-center justify-center">
+                  <FileText className="text-white w-6 h-6" />
+                </div>
+                <h2 className="font-black text-2xl text-gray-900 tracking-tight">
+                  Toko SAFIRA
+                </h2>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">
+                  Laporan Penjualan
+                </p>
+                <div className="mt-4 text-[10px] text-gray-500 flex justify-between items-center bg-gray-50 p-2 rounded-lg font-mono">
+                  <span>
+                    {formatFilterLabel(selectedFilterValue, filterMode)}
+                  </span>
+                  <span>
+                    {new Date().toLocaleTimeString("id-ID", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              <div className="px-5 md:px-6 py-4 overflow-y-auto custom-scrollbar flex-1">
+                <div className="space-y-3">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2 mb-2">
+                    Rincian Terjual
+                  </div>
+                  {dailyItemsSummary.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="flex justify-between items-start text-sm"
+                    >
+                      <div className="pr-3">
+                        <p className="font-bold text-gray-800 leading-tight">
+                          {item.name}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                          {formatWeight(item.weight, item.isPiece)}
+                        </p>
+                      </div>
+                      <p className="font-black text-gray-900">
+                        {formatRp(item.total)}
+                      </p>
+                    </div>
+                  ))}
+                  {dailyItemsSummary.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center italic mt-4">
+                      Belum ada penjualan
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-5 md:p-6 pt-0 shrink-0">
+                <div className="space-y-2 mb-5 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  <div className="flex justify-between text-xs text-gray-600 font-medium">
+                    <span>Total Transaksi</span>
+                    <span>{filteredHistory.length}</span>
+                  </div>
+                  <div className="flex justify-between font-black text-lg text-gray-900 mt-2 pt-2 border-t border-gray-200">
+                    <span>SETORAN</span>
+                    <span>
+                      {formatRp(
+                        filteredHistory.reduce(
+                          (acc, curr) => acc + curr.total,
+                          0,
+                        ),
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-gray-400 font-medium mt-3 pt-3 border-t border-gray-200 border-dashed">
+                    <span>Kasir: {currentUser?.name}</span>
+                    <span>{getBranchName(currentUser?.branchId)}</span>
+                  </div>
+                </div>
+
+                {/* Tombol Diganti Menjadi Simpan Laporan PDF */}
+                <button
+                  onClick={handleSavePDF}
+                  className="w-full min-h-[48px] flex items-center justify-center gap-2 border-2 border-emerald-600 bg-emerald-50 text-emerald-700 font-black py-3 rounded-xl hover:bg-emerald-600 hover:text-white transition-colors active:scale-95 shrink-0 text-sm"
+                >
+                  <Download className="w-5 h-5 shrink-0" />{" "}
+                  <span className="whitespace-nowrap">
+                    Simpan Laporan (PDF)
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div className="fixed top-6 lg:bottom-6 lg:top-auto left-1/2 -translate-x-1/2 z-[90] animate-in fade-in slide-in-from-top-5 lg:slide-in-from-bottom-5">
           <div
