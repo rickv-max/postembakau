@@ -393,21 +393,7 @@ export default function App() {
               </button>
             </form>
 
-            <div className="mt-6 md:mt-8 bg-amber-50 p-3 md:p-4 rounded-xl border border-amber-100">
-              <p className="text-[10px] text-amber-800 font-bold uppercase tracking-widest text-center mb-2 md:mb-3">Akun Demo</p>
-              <div className="grid grid-cols-2 gap-2 md:gap-3 text-xs font-medium text-amber-900">
-                <div className="bg-white/60 p-2 rounded-lg text-center">
-                  <p className="font-bold mb-1">👑 Owner (Admin)</p>
-                  <p>User: <code className="bg-amber-200/50 px-1 rounded font-bold">admin</code></p>
-                  <p>Pass: <code className="bg-amber-200/50 px-1 rounded font-bold">admin</code></p>
-                </div>
-                <div className="bg-white/60 p-2 rounded-lg text-center">
-                  <p className="font-bold mb-1">🧑‍💼 Kasir</p>
-                  <p>User: <code className="bg-amber-200/50 px-1 rounded font-bold">kasir</code></p>
-                  <p>Pass: <code className="bg-amber-200/50 px-1 rounded font-bold">123</code></p>
-                </div>
-              </div>
-            </div>
+            
           </div>
 
           {toast && (
