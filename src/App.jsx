@@ -28,6 +28,48 @@ import {
   Users,
   UserPlus,
 } from "lucide-react";
+import { initializeApp } from "firebase/app";
+import {
+  getAuth,
+  signInAnonymously,
+  signInWithCustomToken,
+  onAuthStateChanged,
+} from "firebase/auth";
+import {
+  getFirestore,
+  collection,
+  onSnapshot,
+  doc,
+  setDoc,
+  deleteDoc,
+} from "firebase/firestore";
+
+// --- SETUP FIREBASE (CLOUD STORAGE) ---
+// PERHATIAN: Masukkan Konfigurasi Firebase Anda di bawah ini
+const getFirebaseConfig = () => {
+  if (typeof __firebase_config !== "undefined") {
+    return JSON.parse(__firebase_config);
+  }
+  // GANTI VALUE DI BAWAH INI DENGAN CONFIG DARI FIREBASE CONSOLE ANDA:
+  // Catatan: Jika menggunakan lokal (Vite), Anda dapat menggunakan import.meta.env.VITE_FIREBASE_API_KEY dst.
+  return {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  };
+};
+
+const firebaseConfig = getFirebaseConfig();
+const isConfigValid =
+  firebaseConfig.apiKey && firebaseConfig.apiKey !== "ISI_API_KEY_ANDA";
+
+const app = isConfigValid ? initializeApp(firebaseConfig) : null;
+const auth = app ? getAuth(app) : null;
+const db = app ? getFirestore(app) : null;
+const appId = typeof __app_id !== "undefined" ? __app_id : "takopos-cloud";
 
 // --- DATA AWAL (MOCK DATABASE) ---
 
@@ -121,31 +163,6 @@ const INITIAL_INVENTORY = [
   },
 ];
 
-const generateMockTransactions = () => {
-  const now = new Date();
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15);
-  return [
-    {
-      id: `TRX-${Date.now().toString().slice(-6)}1`,
-      date: now.toISOString(),
-      items: [{ name: "Tembakau Gayo Aceh", weight: 100, pricePerGram: 150 }],
-      total: 15000,
-      cash: 20000,
-      change: 5000,
-      cashier: "Rangga (Kasir)",
-    },
-    {
-      id: `TRX-${Date.now().toString().slice(-6)}2`,
-      date: lastMonth.toISOString(),
-      items: [{ name: "Tembakau Virginia", weight: 50, pricePerGram: 250 }],
-      total: 12500,
-      cash: 15000,
-      change: 2500,
-      cashier: "Bpk. Pemilik",
-    },
-  ];
-};
-
 // --- HELPER FUNCTIONS ---
 const formatRp = (amount) => {
   return new Intl.NumberFormat("id-ID", {
@@ -162,11 +179,13 @@ const formatWeight = (grams) => {
 
 // --- MAIN APPLICATION COMPONENT ---
 export default function App() {
+  // FIREBASE & LOADING STATE
+  const [fbUser, setFbUser] = useState(null);
+  const [isDbReady, setIsDbReady] = useState(false);
+  const [firebaseError] = useState(!app);
+
   // AUTH STATE
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem("tako_users");
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
-  });
+  const [users, setUsers] = useState(INITIAL_USERS);
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem("tako_currentUser");
     return saved ? JSON.parse(saved) : null;
@@ -174,15 +193,9 @@ export default function App() {
 
   // MAIN APP STATE
   const [activeTab, setActiveTab] = useState("pos");
-  const [inventory, setInventory] = useState(() => {
-    const saved = localStorage.getItem("tako_inventory");
-    return saved ? JSON.parse(saved) : INITIAL_INVENTORY;
-  });
+  const [inventory, setInventory] = useState(INITIAL_INVENTORY);
   const [cart, setCart] = useState([]);
-  const [transactions, setTransactions] = useState(() => {
-    const saved = localStorage.getItem("tako_transactions");
-    return saved ? JSON.parse(saved) : generateMockTransactions();
-  });
+  const [transactions, setTransactions] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
 
   // UI & MODALS STATE
@@ -197,6 +210,8 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmDeleteTransactionId, setConfirmDeleteTransactionId] =
+    useState(null);
 
   // PROFILE & TEAM MANAGEMENT STATE
   const [profileModal, setProfileModal] = useState(false);
@@ -214,10 +229,98 @@ export default function App() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
-  // --- LOCAL STORAGE EFFECTS ---
+  // --- FIREBASE CLOUD EFFECTS ---
   useEffect(() => {
-    localStorage.setItem("tako_users", JSON.stringify(users));
-  }, [users]);
+    if (!auth) return;
+    const initAuth = async () => {
+      try {
+        if (
+          typeof __initial_auth_token !== "undefined" &&
+          __initial_auth_token
+        ) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Firebase Auth Error:", error);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, (user) => setFbUser(user));
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!fbUser || !db) return;
+
+    // Sinkronisasi Users
+    const unsubUsers = onSnapshot(
+      collection(db, "artifacts", appId, "public", "data", "appUsers"),
+      (snapshot) => {
+        if (!snapshot.empty) setUsers(snapshot.docs.map((doc) => doc.data()));
+        else
+          INITIAL_USERS.forEach((u) =>
+            setDoc(
+              doc(
+                db,
+                "artifacts",
+                appId,
+                "public",
+                "data",
+                "appUsers",
+                String(u.id),
+              ),
+              u,
+            ),
+          );
+      },
+      (err) => console.error(err),
+    );
+
+    // Sinkronisasi Inventory
+    const unsubInv = onSnapshot(
+      collection(db, "artifacts", appId, "public", "data", "inventory"),
+      (snapshot) => {
+        if (!snapshot.empty)
+          setInventory(snapshot.docs.map((doc) => doc.data()));
+        else
+          INITIAL_INVENTORY.forEach((inv) =>
+            setDoc(
+              doc(
+                db,
+                "artifacts",
+                appId,
+                "public",
+                "data",
+                "inventory",
+                String(inv.id),
+              ),
+              inv,
+            ),
+          );
+      },
+      (err) => console.error(err),
+    );
+
+    // Sinkronisasi Transactions
+    const unsubTrx = onSnapshot(
+      collection(db, "artifacts", appId, "public", "data", "transactions"),
+      (snapshot) => {
+        const trxs = snapshot.docs.map((doc) => doc.data());
+        trxs.sort((a, b) => new Date(b.date) - new Date(a.date));
+        setTransactions(trxs);
+        setIsDbReady(true);
+      },
+      (err) => console.error(err),
+    );
+
+    return () => {
+      unsubUsers();
+      unsubInv();
+      unsubTrx();
+    };
+  }, [fbUser]);
 
   useEffect(() => {
     if (currentUser) {
@@ -226,14 +329,6 @@ export default function App() {
       localStorage.removeItem("tako_currentUser");
     }
   }, [currentUser]);
-
-  useEffect(() => {
-    localStorage.setItem("tako_inventory", JSON.stringify(inventory));
-  }, [inventory]);
-
-  useEffect(() => {
-    localStorage.setItem("tako_transactions", JSON.stringify(transactions));
-  }, [transactions]);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -266,12 +361,20 @@ export default function App() {
       showToast("Password lama tidak sesuai!", "error");
       return false;
     }
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === currentUser.id ? { ...u, password: newPass } : u,
+    const updatedUser = { ...currentUser, password: newPass };
+    setDoc(
+      doc(
+        db,
+        "artifacts",
+        appId,
+        "public",
+        "data",
+        "appUsers",
+        String(currentUser.id),
       ),
+      updatedUser,
     );
-    setCurrentUser((prev) => ({ ...prev, password: newPass }));
+    setCurrentUser(updatedUser);
     showToast("Password berhasil diubah!");
     setProfileModal(false);
     return true;
@@ -292,7 +395,20 @@ export default function App() {
       return;
     }
 
-    setUsers([{ ...newUser, id: Date.now() }, ...users]);
+    const newUserObj = { ...newUser, id: Date.now() };
+    setDoc(
+      doc(
+        db,
+        "artifacts",
+        appId,
+        "public",
+        "data",
+        "appUsers",
+        String(newUserObj.id),
+      ),
+      newUserObj,
+    );
+
     setIsAddingUser(false);
     setNewUser({ username: "", password: "", name: "", role: "Kasir" });
     showToast("Akun karyawan berhasil dibuat");
@@ -303,7 +419,9 @@ export default function App() {
       showToast("Anda tidak bisa menghapus akun sendiri!", "error");
       return;
     }
-    setUsers(users.filter((u) => u.id !== id));
+    deleteDoc(
+      doc(db, "artifacts", appId, "public", "data", "appUsers", String(id)),
+    );
     showToast("Akun karyawan dihapus");
   };
 
@@ -378,17 +496,28 @@ export default function App() {
       return;
     }
 
-    const newInventory = [...inventory];
+    // Potong Stok Gudang ke Cloud
     cart.forEach((cartItem) => {
-      const invIndex = newInventory.findIndex((p) => p.id === cartItem.id);
-      if (invIndex !== -1) {
-        newInventory[invIndex] = {
-          ...newInventory[invIndex],
-          stockGrams: newInventory[invIndex].stockGrams - cartItem.weight,
+      const invItem = inventory.find((p) => p.id === cartItem.id);
+      if (invItem) {
+        const updatedInv = {
+          ...invItem,
+          stockGrams: invItem.stockGrams - cartItem.weight,
         };
+        setDoc(
+          doc(
+            db,
+            "artifacts",
+            appId,
+            "public",
+            "data",
+            "inventory",
+            String(invItem.id),
+          ),
+          updatedInv,
+        );
       }
     });
-    setInventory(newInventory);
 
     const transaction = {
       id: `TRX-${Date.now().toString().slice(-6)}`,
@@ -400,7 +529,20 @@ export default function App() {
       cashier: currentUser.name,
     };
 
-    setTransactions([transaction, ...transactions]);
+    // Simpan Transaksi ke Cloud
+    setDoc(
+      doc(
+        db,
+        "artifacts",
+        appId,
+        "public",
+        "data",
+        "transactions",
+        String(transaction.id),
+      ),
+      transaction,
+    );
+
     setCart([]);
     setCheckoutModal(false);
     setIsMobileCartOpen(false);
@@ -414,25 +556,46 @@ export default function App() {
       showToast("Nama dan harga harus valid!", "error");
       return;
     }
-    if (isAddingNew) {
-      setInventory([{ ...editingProduct, id: Date.now() }, ...inventory]);
-      showToast("Produk baru berhasil ditambahkan");
-    } else {
-      setInventory((prev) =>
-        prev.map((p) => (p.id === editingProduct.id ? editingProduct : p)),
-      );
-      showToast("Data produk berhasil diperbarui");
-    }
+
+    const invObj = isAddingNew
+      ? { ...editingProduct, id: Date.now() }
+      : editingProduct;
+    setDoc(
+      doc(
+        db,
+        "artifacts",
+        appId,
+        "public",
+        "data",
+        "inventory",
+        String(invObj.id),
+      ),
+      invObj,
+    );
+
+    if (isAddingNew) showToast("Produk baru berhasil ditambahkan");
+    else showToast("Data produk berhasil diperbarui");
+
     setEditingProduct(null);
     setIsAddingNew(false);
   };
 
   const handleDeleteProduct = (id) => {
-    setInventory((prev) => prev.filter((p) => p.id !== id));
+    deleteDoc(
+      doc(db, "artifacts", appId, "public", "data", "inventory", String(id)),
+    );
     setCart((prev) => prev.filter((item) => item.id !== id));
     if (cart.length === 1 && cart[0].id === id) setIsMobileCartOpen(false);
     setConfirmDeleteId(null);
     showToast("Produk berhasil dihapus");
+  };
+
+  const handleDeleteTransaction = (id) => {
+    deleteDoc(
+      doc(db, "artifacts", appId, "public", "data", "transactions", String(id)),
+    );
+    setConfirmDeleteTransactionId(null);
+    showToast("Data riwayat berhasil dihapus secara permanen");
   };
 
   const handleOpenAddProduct = () => {
@@ -567,8 +730,36 @@ export default function App() {
   ];
 
   // ==========================================
-  // RENDERER: LOGIN SCREEN
+  // RENDERER: LOGIN SCREEN & FIREBASE STATUS
   // ==========================================
+
+  if (firebaseError) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-900 p-6 text-center">
+        <AlertCircle className="w-16 h-16 text-amber-500 mb-4" />
+        <h1 className="text-2xl font-black text-white mb-2">
+          Konfigurasi Cloud Diperlukan
+        </h1>
+        <p className="text-gray-400 text-sm max-w-md leading-relaxed">
+          Anda telah mengaktifkan mode <b>Penyimpanan Cloud</b>. Untuk
+          melanjutkan, masukkan konfigurasi Firebase (API Key, dll) di file{" "}
+          <code>App.jsx</code> pada baris ke-20.
+        </p>
+      </div>
+    );
+  }
+
+  if (!isDbReady) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-900 p-6 text-center">
+        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-gray-400 font-bold tracking-widest text-sm">
+          SINKRONISASI CLOUD DATABASE...
+        </p>
+      </div>
+    );
+  }
+
   if (!currentUser) {
     const LoginScreen = () => {
       const [user, setUser] = useState("");
@@ -649,6 +840,44 @@ export default function App() {
                 Sistem
               </button>
             </form>
+
+            <div className="mt-6 md:mt-8 bg-amber-50 p-3 md:p-4 rounded-xl border border-amber-100">
+              <p className="text-[10px] text-amber-800 font-bold uppercase tracking-widest text-center mb-2 md:mb-3">
+                Akun Demo
+              </p>
+              <div className="grid grid-cols-2 gap-2 md:gap-3 text-xs font-medium text-amber-900">
+                <div className="bg-white/60 p-2 rounded-lg text-center">
+                  <p className="font-bold mb-1">👑 Owner (Admin)</p>
+                  <p>
+                    User:{" "}
+                    <code className="bg-amber-200/50 px-1 rounded font-bold">
+                      admin
+                    </code>
+                  </p>
+                  <p>
+                    Pass:{" "}
+                    <code className="bg-amber-200/50 px-1 rounded font-bold">
+                      admin
+                    </code>
+                  </p>
+                </div>
+                <div className="bg-white/60 p-2 rounded-lg text-center">
+                  <p className="font-bold mb-1">🧑‍💼 Kasir</p>
+                  <p>
+                    User:{" "}
+                    <code className="bg-amber-200/50 px-1 rounded font-bold">
+                      kasir
+                    </code>
+                  </p>
+                  <p>
+                    Pass:{" "}
+                    <code className="bg-amber-200/50 px-1 rounded font-bold">
+                      123
+                    </code>
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {toast && (
@@ -1190,13 +1419,24 @@ export default function App() {
                     {formatRp(trx.total)}
                   </p>
                 </div>
-                <button
-                  onClick={() => setReceiptModal(trx)}
-                  className="mt-3 md:mt-4 w-full bg-gray-900 text-white text-xs md:text-sm font-bold py-2 md:py-2.5 rounded-xl hover:bg-gray-800 transition-colors flex justify-center items-center gap-1.5 md:gap-2 active:scale-95 min-h-[40px] md:min-h-[44px]"
-                >
-                  <Printer className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />{" "}
-                  <span className="whitespace-nowrap">Cetak Ulang</span>
-                </button>
+                <div className="flex gap-2 mt-3 md:mt-4">
+                  <button
+                    onClick={() => setReceiptModal(trx)}
+                    className="flex-1 bg-gray-900 text-white text-xs md:text-sm font-bold py-2 md:py-2.5 rounded-xl hover:bg-gray-800 transition-colors flex justify-center items-center gap-1.5 md:gap-2 active:scale-95 min-h-[40px] md:min-h-[44px]"
+                  >
+                    <Printer className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />{" "}
+                    <span className="whitespace-nowrap">Cetak</span>
+                  </button>
+                  {/* Tombol Hapus Transaksi Khusus Owner */}
+                  {currentUser?.role === "Owner" && (
+                    <button
+                      onClick={() => setConfirmDeleteTransactionId(trx.id)}
+                      className="bg-red-50 text-red-600 px-3 md:px-4 text-xs md:text-sm font-bold py-2 md:py-2.5 rounded-xl hover:bg-red-100 hover:text-red-700 transition-colors flex justify-center items-center active:scale-95 min-h-[40px] md:min-h-[44px]"
+                    >
+                      <Trash2 className="w-4 h-4 shrink-0" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))
@@ -1935,6 +2175,40 @@ export default function App() {
               </button>
               <button
                 onClick={() => handleDeleteProduct(confirmDeleteId)}
+                className="flex-1 py-2.5 md:py-3 font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg shadow-red-600/20 transition-colors text-sm md:text-base"
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 6: Transaction Delete Confirmation (HANYA OWNER) */}
+      {confirmDeleteTransactionId && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
+          <div className="bg-white rounded-3xl p-5 md:p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200 text-center">
+            <div className="w-12 h-12 md:w-16 md:h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4">
+              <Trash2 className="w-6 h-6 md:w-8 md:h-8 text-red-600" />
+            </div>
+            <h3 className="text-lg md:text-xl font-black text-gray-900 mb-1.5 md:mb-2">
+              Hapus Riwayat?
+            </h3>
+            <p className="text-gray-500 text-xs md:text-sm mb-5 md:mb-6">
+              Tindakan ini tidak dapat dibatalkan. Data riwayat transaksi ini
+              akan dihapus permanen dari laporan.
+            </p>
+            <div className="flex gap-2.5 md:gap-3">
+              <button
+                onClick={() => setConfirmDeleteTransactionId(null)}
+                className="flex-1 py-2.5 md:py-3 font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors text-sm md:text-base"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() =>
+                  handleDeleteTransaction(confirmDeleteTransactionId)
+                }
                 className="flex-1 py-2.5 md:py-3 font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg shadow-red-600/20 transition-colors text-sm md:text-base"
               >
                 Ya, Hapus
