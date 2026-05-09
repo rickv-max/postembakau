@@ -74,6 +74,7 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmDeleteTransactionId, setConfirmDeleteTransactionId] = useState(null);
 
   // PROFILE & TEAM MANAGEMENT STATE
   const [profileModal, setProfileModal] = useState(false);
@@ -250,6 +251,12 @@ export default function App() {
     if (cart.length === 1 && cart[0].id === id) setIsMobileCartOpen(false);
     setConfirmDeleteId(null);
     showToast('Produk berhasil dihapus');
+  };
+
+  const handleDeleteTransaction = (id) => {
+    setTransactions(prev => prev.filter(trx => trx.id !== id));
+    setConfirmDeleteTransactionId(null);
+    showToast('Data riwayat berhasil dihapus secara permanen');
   };
 
   const handleOpenAddProduct = () => {
@@ -648,7 +655,13 @@ export default function App() {
               </div>
               <div className="md:w-48 shrink-0 flex flex-col justify-between border-t md:border-t-0 md:border-l border-gray-100 pt-2.5 md:pt-0 md:pl-5">
                 <div><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5 md:mb-1">Nilai Transaksi</p><p className="font-black text-lg md:text-xl text-gray-900">{formatRp(trx.total)}</p></div>
-                <button onClick={() => setReceiptModal(trx)} className="mt-3 md:mt-4 w-full bg-gray-900 text-white text-xs md:text-sm font-bold py-2 md:py-2.5 rounded-xl hover:bg-gray-800 transition-colors flex justify-center items-center gap-1.5 md:gap-2 active:scale-95 min-h-[40px] md:min-h-[44px]"><Printer className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0"/> <span className="whitespace-nowrap">Cetak Ulang</span></button>
+                <div className="flex gap-2 mt-3 md:mt-4">
+                  <button onClick={() => setReceiptModal(trx)} className="flex-1 bg-gray-900 text-white text-xs md:text-sm font-bold py-2 md:py-2.5 rounded-xl hover:bg-gray-800 transition-colors flex justify-center items-center gap-1.5 md:gap-2 active:scale-95 min-h-[40px] md:min-h-[44px]"><Printer className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0"/> <span className="whitespace-nowrap">Cetak</span></button>
+                  {/* Tombol Hapus Transaksi Khusus Owner */}
+                  {currentUser?.role === 'Owner' && (
+                    <button onClick={() => setConfirmDeleteTransactionId(trx.id)} className="bg-red-50 text-red-600 px-3 md:px-4 text-xs md:text-sm font-bold py-2 md:py-2.5 rounded-xl hover:bg-red-100 hover:text-red-700 transition-colors flex justify-center items-center active:scale-95 min-h-[40px] md:min-h-[44px]"><Trash2 className="w-4 h-4 shrink-0"/></button>
+                  )}
+                </div>
               </div>
             </div>
           ))
@@ -992,6 +1005,20 @@ export default function App() {
             <div className="w-12 h-12 md:w-16 md:h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4"><Trash2 className="w-6 h-6 md:w-8 md:h-8 text-red-600" /></div>
             <h3 className="text-lg md:text-xl font-black text-gray-900 mb-1.5 md:mb-2">Hapus Produk?</h3><p className="text-gray-500 text-xs md:text-sm mb-5 md:mb-6">Tindakan ini tidak dapat dibatalkan. Produk akan dihapus secara permanen dari sistem gudang.</p>
             <div className="flex gap-2.5 md:gap-3"><button onClick={() => setConfirmDeleteId(null)} className="flex-1 py-2.5 md:py-3 font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors text-sm md:text-base">Batal</button><button onClick={() => handleDeleteProduct(confirmDeleteId)} className="flex-1 py-2.5 md:py-3 font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg shadow-red-600/20 transition-colors text-sm md:text-base">Ya, Hapus</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 6: Transaction Delete Confirmation (HANYA OWNER) */}
+      {confirmDeleteTransactionId && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
+          <div className="bg-white rounded-3xl p-5 md:p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200 text-center">
+            <div className="w-12 h-12 md:w-16 md:h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4"><Trash2 className="w-6 h-6 md:w-8 md:h-8 text-red-600" /></div>
+            <h3 className="text-lg md:text-xl font-black text-gray-900 mb-1.5 md:mb-2">Hapus Riwayat?</h3><p className="text-gray-500 text-xs md:text-sm mb-5 md:mb-6">Tindakan ini tidak dapat dibatalkan. Data riwayat transaksi ini akan dihapus permanen dari laporan.</p>
+            <div className="flex gap-2.5 md:gap-3">
+              <button onClick={() => setConfirmDeleteTransactionId(null)} className="flex-1 py-2.5 md:py-3 font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors text-sm md:text-base">Batal</button>
+              <button onClick={() => handleDeleteTransaction(confirmDeleteTransactionId)} className="flex-1 py-2.5 md:py-3 font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg shadow-red-600/20 transition-colors text-sm md:text-base">Ya, Hapus</button>
+            </div>
           </div>
         </div>
       )}
