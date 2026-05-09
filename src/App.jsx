@@ -121,30 +121,7 @@ const INITIAL_INVENTORY = [
   },
 ];
 
-const generateMockTransactions = () => {
-  const now = new Date();
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15);
-  return [
-    {
-      id: `TRX-${Date.now().toString().slice(-6)}1`,
-      date: now.toISOString(),
-      items: [{ name: "Tembakau Gayo Aceh", weight: 100, pricePerGram: 150 }],
-      total: 15000,
-      cash: 20000,
-      change: 5000,
-      cashier: "Rangga (Kasir)",
-    },
-    {
-      id: `TRX-${Date.now().toString().slice(-6)}2`,
-      date: lastMonth.toISOString(),
-      items: [{ name: "Tembakau Virginia", weight: 50, pricePerGram: 250 }],
-      total: 12500,
-      cash: 15000,
-      change: 2500,
-      cashier: "Bpk. Pemilik",
-    },
-  ];
-};
+
 
 // --- HELPER FUNCTIONS ---
 const formatRp = (amount) => {
