@@ -45,13 +45,12 @@ import {
 } from "firebase/firestore";
 
 // --- SETUP FIREBASE (CLOUD STORAGE) ---
-// PERHATIAN: Masukkan Konfigurasi Firebase Anda di bawah ini
 const getFirebaseConfig = () => {
   if (typeof __firebase_config !== "undefined") {
     return JSON.parse(__firebase_config);
   }
-  // GANTI VALUE DI BAWAH INI DENGAN CONFIG DARI FIREBASE CONSOLE ANDA:
-  // Catatan: Jika menggunakan lokal (Vite), Anda dapat menggunakan import.meta.env.VITE_FIREBASE_API_KEY dst.
+
+  // MENGGUNAKAN ENVIRONMENT VARIABLES DARI VITE (.env)
   return {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -179,13 +178,14 @@ const formatWeight = (grams) => {
 
 // --- MAIN APPLICATION COMPONENT ---
 export default function App() {
-  // FIREBASE & LOADING STATE
+  // FIREBASE STATE
   const [fbUser, setFbUser] = useState(null);
-  const [isDbReady, setIsDbReady] = useState(false);
-  const [firebaseError] = useState(!app);
 
   // AUTH STATE
-  const [users, setUsers] = useState(INITIAL_USERS);
+  const [users, setUsers] = useState(() => {
+    const saved = localStorage.getItem("tako_users");
+    return saved ? JSON.parse(saved) : INITIAL_USERS;
+  });
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem("tako_currentUser");
     return saved ? JSON.parse(saved) : null;
@@ -193,9 +193,15 @@ export default function App() {
 
   // MAIN APP STATE
   const [activeTab, setActiveTab] = useState("pos");
-  const [inventory, setInventory] = useState(INITIAL_INVENTORY);
+  const [inventory, setInventory] = useState(() => {
+    const saved = localStorage.getItem("tako_inventory");
+    return saved ? JSON.parse(saved) : INITIAL_INVENTORY;
+  });
   const [cart, setCart] = useState([]);
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState(() => {
+    const saved = localStorage.getItem("tako_transactions");
+    return saved ? JSON.parse(saved) : [];
+  });
   const [searchQuery, setSearchQuery] = useState("");
 
   // UI & MODALS STATE
@@ -229,6 +235,27 @@ export default function App() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
+  // --- LOCAL STORAGE EFFECTS ---
+  useEffect(() => {
+    localStorage.setItem("tako_users", JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem("tako_currentUser", JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem("tako_currentUser");
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    localStorage.setItem("tako_inventory", JSON.stringify(inventory));
+  }, [inventory]);
+
+  useEffect(() => {
+    localStorage.setItem("tako_transactions", JSON.stringify(transactions));
+  }, [transactions]);
+
   // --- FIREBASE CLOUD EFFECTS ---
   useEffect(() => {
     if (!auth) return;
@@ -244,17 +271,20 @@ export default function App() {
         }
       } catch (error) {
         console.error("Firebase Auth Error:", error);
+        // Error tidak lagi memblokir layar, aplikasi akan otomatis jatuh ke mode "Offline" menggunakan local storage
       }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => setFbUser(user));
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) setFbUser(user);
+    });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     if (!fbUser || !db) return;
 
-    // Sinkronisasi Users
+    // Sinkronisasi Users (Real-time di background tanpa loading screen)
     const unsubUsers = onSnapshot(
       collection(db, "artifacts", appId, "public", "data", "appUsers"),
       (snapshot) => {
@@ -275,7 +305,7 @@ export default function App() {
             ),
           );
       },
-      (err) => console.error(err),
+      (err) => console.error("Sync Error:", err),
     );
 
     // Sinkronisasi Inventory
@@ -300,7 +330,7 @@ export default function App() {
             ),
           );
       },
-      (err) => console.error(err),
+      (err) => console.error("Sync Error:", err),
     );
 
     // Sinkronisasi Transactions
@@ -310,9 +340,8 @@ export default function App() {
         const trxs = snapshot.docs.map((doc) => doc.data());
         trxs.sort((a, b) => new Date(b.date) - new Date(a.date));
         setTransactions(trxs);
-        setIsDbReady(true);
       },
-      (err) => console.error(err),
+      (err) => console.error("Sync Error:", err),
     );
 
     return () => {
@@ -321,14 +350,6 @@ export default function App() {
       unsubTrx();
     };
   }, [fbUser]);
-
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem("tako_currentUser", JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem("tako_currentUser");
-    }
-  }, [currentUser]);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -362,18 +383,26 @@ export default function App() {
       return false;
     }
     const updatedUser = { ...currentUser, password: newPass };
-    setDoc(
-      doc(
-        db,
-        "artifacts",
-        appId,
-        "public",
-        "data",
-        "appUsers",
-        String(currentUser.id),
-      ),
-      updatedUser,
-    );
+
+    // Simpan ke Cloud jika online, simpan lokal ditangani useEffect
+    if (fbUser && db)
+      setDoc(
+        doc(
+          db,
+          "artifacts",
+          appId,
+          "public",
+          "data",
+          "appUsers",
+          String(currentUser.id),
+        ),
+        updatedUser,
+      );
+    else
+      setUsers((prev) =>
+        prev.map((u) => (u.id === currentUser.id ? updatedUser : u)),
+      );
+
     setCurrentUser(updatedUser);
     showToast("Password berhasil diubah!");
     setProfileModal(false);
@@ -396,18 +425,21 @@ export default function App() {
     }
 
     const newUserObj = { ...newUser, id: Date.now() };
-    setDoc(
-      doc(
-        db,
-        "artifacts",
-        appId,
-        "public",
-        "data",
-        "appUsers",
-        String(newUserObj.id),
-      ),
-      newUserObj,
-    );
+
+    if (fbUser && db)
+      setDoc(
+        doc(
+          db,
+          "artifacts",
+          appId,
+          "public",
+          "data",
+          "appUsers",
+          String(newUserObj.id),
+        ),
+        newUserObj,
+      );
+    else setUsers([newUserObj, ...users]);
 
     setIsAddingUser(false);
     setNewUser({ username: "", password: "", name: "", role: "Kasir" });
@@ -419,9 +451,13 @@ export default function App() {
       showToast("Anda tidak bisa menghapus akun sendiri!", "error");
       return;
     }
-    deleteDoc(
-      doc(db, "artifacts", appId, "public", "data", "appUsers", String(id)),
-    );
+
+    if (fbUser && db)
+      deleteDoc(
+        doc(db, "artifacts", appId, "public", "data", "appUsers", String(id)),
+      );
+    else setUsers(users.filter((u) => u.id !== id));
+
     showToast("Akun karyawan dihapus");
   };
 
@@ -496,28 +532,34 @@ export default function App() {
       return;
     }
 
-    // Potong Stok Gudang ke Cloud
+    const newInventory = [...inventory];
+
+    // Potong Stok Gudang ke Cloud (Jika online) atau Lokal (Jika offline)
     cart.forEach((cartItem) => {
-      const invItem = inventory.find((p) => p.id === cartItem.id);
-      if (invItem) {
+      const invIndex = newInventory.findIndex((p) => p.id === cartItem.id);
+      if (invIndex !== -1) {
         const updatedInv = {
-          ...invItem,
-          stockGrams: invItem.stockGrams - cartItem.weight,
+          ...newInventory[invIndex],
+          stockGrams: newInventory[invIndex].stockGrams - cartItem.weight,
         };
-        setDoc(
-          doc(
-            db,
-            "artifacts",
-            appId,
-            "public",
-            "data",
-            "inventory",
-            String(invItem.id),
-          ),
-          updatedInv,
-        );
+        newInventory[invIndex] = updatedInv;
+        if (fbUser && db)
+          setDoc(
+            doc(
+              db,
+              "artifacts",
+              appId,
+              "public",
+              "data",
+              "inventory",
+              String(updatedInv.id),
+            ),
+            updatedInv,
+          );
       }
     });
+
+    if (!fbUser || !db) setInventory(newInventory); // Update lokal fallback
 
     const transaction = {
       id: `TRX-${Date.now().toString().slice(-6)}`,
@@ -530,18 +572,20 @@ export default function App() {
     };
 
     // Simpan Transaksi ke Cloud
-    setDoc(
-      doc(
-        db,
-        "artifacts",
-        appId,
-        "public",
-        "data",
-        "transactions",
-        String(transaction.id),
-      ),
-      transaction,
-    );
+    if (fbUser && db)
+      setDoc(
+        doc(
+          db,
+          "artifacts",
+          appId,
+          "public",
+          "data",
+          "transactions",
+          String(transaction.id),
+        ),
+        transaction,
+      );
+    else setTransactions([transaction, ...transactions]); // Update lokal fallback
 
     setCart([]);
     setCheckoutModal(false);
@@ -560,18 +604,27 @@ export default function App() {
     const invObj = isAddingNew
       ? { ...editingProduct, id: Date.now() }
       : editingProduct;
-    setDoc(
-      doc(
-        db,
-        "artifacts",
-        appId,
-        "public",
-        "data",
-        "inventory",
-        String(invObj.id),
-      ),
-      invObj,
-    );
+
+    if (fbUser && db) {
+      setDoc(
+        doc(
+          db,
+          "artifacts",
+          appId,
+          "public",
+          "data",
+          "inventory",
+          String(invObj.id),
+        ),
+        invObj,
+      );
+    } else {
+      if (isAddingNew) setInventory([invObj, ...inventory]);
+      else
+        setInventory((prev) =>
+          prev.map((p) => (p.id === editingProduct.id ? invObj : p)),
+        );
+    }
 
     if (isAddingNew) showToast("Produk baru berhasil ditambahkan");
     else showToast("Data produk berhasil diperbarui");
@@ -581,9 +634,12 @@ export default function App() {
   };
 
   const handleDeleteProduct = (id) => {
-    deleteDoc(
-      doc(db, "artifacts", appId, "public", "data", "inventory", String(id)),
-    );
+    if (fbUser && db)
+      deleteDoc(
+        doc(db, "artifacts", appId, "public", "data", "inventory", String(id)),
+      );
+    else setInventory((prev) => prev.filter((p) => p.id !== id));
+
     setCart((prev) => prev.filter((item) => item.id !== id));
     if (cart.length === 1 && cart[0].id === id) setIsMobileCartOpen(false);
     setConfirmDeleteId(null);
@@ -591,9 +647,20 @@ export default function App() {
   };
 
   const handleDeleteTransaction = (id) => {
-    deleteDoc(
-      doc(db, "artifacts", appId, "public", "data", "transactions", String(id)),
-    );
+    if (fbUser && db)
+      deleteDoc(
+        doc(
+          db,
+          "artifacts",
+          appId,
+          "public",
+          "data",
+          "transactions",
+          String(id),
+        ),
+      );
+    else setTransactions((prev) => prev.filter((trx) => trx.id !== id));
+
     setConfirmDeleteTransactionId(null);
     showToast("Data riwayat berhasil dihapus secara permanen");
   };
@@ -730,35 +797,8 @@ export default function App() {
   ];
 
   // ==========================================
-  // RENDERER: LOGIN SCREEN & FIREBASE STATUS
+  // RENDERER: LOGIN SCREEN
   // ==========================================
-
-  if (firebaseError) {
-    return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-900 p-6 text-center">
-        <AlertCircle className="w-16 h-16 text-amber-500 mb-4" />
-        <h1 className="text-2xl font-black text-white mb-2">
-          Konfigurasi Cloud Diperlukan
-        </h1>
-        <p className="text-gray-400 text-sm max-w-md leading-relaxed">
-          Anda telah mengaktifkan mode <b>Penyimpanan Cloud</b>. Untuk
-          melanjutkan, masukkan konfigurasi Firebase (API Key, dll) di file{" "}
-          <code>App.jsx</code> pada baris ke-20.
-        </p>
-      </div>
-    );
-  }
-
-  if (!isDbReady) {
-    return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-900 p-6 text-center">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-gray-400 font-bold tracking-widest text-sm">
-          SINKRONISASI CLOUD DATABASE...
-        </p>
-      </div>
-    );
-  }
 
   if (!currentUser) {
     const LoginScreen = () => {
@@ -775,7 +815,22 @@ export default function App() {
         <div className="min-h-[100dvh] flex items-center justify-center bg-gray-900 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDIiLz4KPC9zdmc+')] px-4 selection:bg-amber-500/30">
           <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 md:p-8 animate-in fade-in zoom-in-95 duration-500 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-400 to-orange-600"></div>
-            <div className="text-center mb-8 md:mb-10">
+
+            {/* Indikator Status Cloud Firebase di Layar Login */}
+            {!fbUser && (
+              <div className="absolute top-4 right-4 flex items-center gap-1.5 text-[9px] font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-md border border-orange-100">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>{" "}
+                Cloud Offline
+              </div>
+            )}
+            {fbUser && (
+              <div className="absolute top-4 right-4 flex items-center gap-1.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{" "}
+                Cloud Aktif
+              </div>
+            )}
+
+            <div className="text-center mb-8 md:mb-10 mt-2">
               <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl mx-auto flex items-center justify-center shadow-xl shadow-gray-900/20 mb-4 md:mb-6 rotate-3">
                 <TrendingUp className="text-amber-400 w-8 h-8 md:w-10 md:h-10 -rotate-3" />
               </div>
@@ -1293,7 +1348,7 @@ export default function App() {
 
   const renderHistory = () => (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
-      <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col gap-3 md:gap-4 bg-gray-50/50 shrink-0">
+      <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4 bg-gray-50/50 shrink-0">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h2 className="text-lg md:text-xl font-bold text-gray-900">
@@ -1770,7 +1825,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal 1: Add to Cart (Diubah max-w-md menjadi max-w-sm agar lebih proporsional) */}
+      {/* Modal 1: Add to Cart */}
       {selectedProduct && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-end lg:items-center justify-center z-50 p-4">
           <div className="bg-white rounded-t-3xl lg:rounded-3xl w-full max-w-sm shadow-2xl animate-in slide-in-from-bottom-5 lg:zoom-in-95 duration-200 max-h-[90dvh] flex flex-col overflow-hidden">
@@ -1848,7 +1903,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal 2: Checkout (Diubah max-w-md menjadi max-w-sm agar proporsional) */}
+      {/* Modal 2: Checkout */}
       {checkoutModal && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-end lg:items-center justify-center z-50 p-4">
           <div className="bg-white rounded-t-3xl lg:rounded-3xl w-full max-w-sm shadow-2xl animate-in slide-in-from-bottom-5 lg:zoom-in-95 duration-200 max-h-[90dvh] flex flex-col overflow-hidden">
@@ -1928,7 +1983,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal 3: Receipt (Diubah ukurannya meniru kertas struk thermal asli) */}
+      {/* Modal 3: Receipt */}
       {receiptModal && (
         <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="relative animate-in zoom-in-95 duration-300 w-full max-w-[340px]">
