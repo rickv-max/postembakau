@@ -1430,7 +1430,7 @@ export default function App() {
             <div className="text-center mb-8 md:mb-10 mt-2">
               <img
                 src="/logo.PNG"
-                alt="Logo Toko Safira"
+                alt="Logo Toko Shafira"
                 className="w-16 h-16 md:w-20 md:h-20 mx-auto rounded-2xl shadow-xl mb-4 md:mb-6 object-contain bg-white"
               />
               <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
@@ -1494,6 +1494,8 @@ export default function App() {
                 Sistem
               </button>
             </form>
+
+            
           </div>
 
           {toast && (
@@ -2206,7 +2208,7 @@ export default function App() {
             <div className="flex items-center gap-2.5 md:gap-3">
               <img
                 src="/logo.PNG"
-                alt="Logo Toko Safira"
+                alt="Logo Toko Shafira"
                 className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl shadow-sm shrink-0 object-contain bg-white"
               />
               <div>
