@@ -879,11 +879,11 @@ export default function App() {
 
   // --- CART & SEARCH LOGIC ---
   const filteredProducts = useMemo(() => {
+    if (!searchQuery) return branchInventory;
     const query = searchQuery.toLowerCase();
+    // Memaksa pencarian hanya berdasarkan Kode Barang saja
     return branchInventory.filter(
-      (p) =>
-        p.name.toLowerCase().includes(query) ||
-        (p.itemCode && p.itemCode.toLowerCase().includes(query)),
+      (p) => p.itemCode && p.itemCode.toLowerCase().includes(query),
     );
   }, [branchInventory, searchQuery]);
 
@@ -1463,7 +1463,7 @@ export default function App() {
             <div className="text-center mb-8 md:mb-10 mt-2">
               <img
                 src="/logo.PNG"
-                alt="Logo Toko SHAFIRA"
+                alt="Logo Toko Shafira"
                 className="w-16 h-16 md:w-20 md:h-20 mx-auto rounded-2xl shadow-xl mb-4 md:mb-6 object-contain bg-white"
               />
               <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
@@ -1645,17 +1645,77 @@ export default function App() {
 
   const renderPOS = () => {
     if (activeBranch === "all") {
+      const lowStockItems = inventory.filter(
+        (item) => item.stockGrams < (item.isPiece ? 20 : 1000),
+      );
+
       return (
-        <div className="flex h-full w-full items-center justify-center">
-          <div className="text-center bg-white p-8 rounded-3xl border border-gray-200 shadow-sm max-w-sm">
-            <Store className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="font-black text-xl text-gray-900 mb-2">
-              Mode Semua Cabang Aktif
-            </h3>
-            <p className="text-sm text-gray-500">
-              Silakan pilih salah satu cabang spesifik di menu atas untuk
-              memulai transaksi kasir.
-            </p>
+        <div className="flex h-full w-full items-start justify-center p-4 md:p-8 overflow-y-auto custom-scrollbar">
+          <div className="w-full max-w-4xl space-y-6 pb-20">
+            {/* Kartu Selamat Datang Owner */}
+            <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-center gap-6">
+              <div className="w-16 h-16 md:w-20 md:h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shrink-0">
+                <Store className="w-8 h-8 md:w-10 md:h-10" />
+              </div>
+              <div className="text-center md:text-left">
+                <h3 className="font-black text-xl md:text-2xl text-gray-900 mb-2">
+                  Pusat Kendali Owner
+                </h3>
+                <p className="text-sm md:text-base text-gray-500">
+                  Silakan pilih salah satu cabang spesifik di menu atas untuk
+                  masuk ke mode Kasir.
+                </p>
+              </div>
+            </div>
+
+            {/* Peringatan Stok Habis (< 1kg) */}
+            {lowStockItems.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-3xl p-5 md:p-8 shadow-sm animate-in fade-in slide-in-from-bottom-5">
+                <div className="flex items-center gap-3 mb-5 md:mb-6 pb-4 border-b border-red-200/50">
+                  <AlertCircle className="w-6 h-6 md:w-8 md:h-8 text-red-600 shrink-0" />
+                  <div>
+                    <h3 className="font-black text-lg md:text-xl text-red-800 leading-tight">
+                      Peringatan Stok Menipis!
+                    </h3>
+                    <p className="text-[10px] md:text-xs text-red-600 font-bold mt-0.5">
+                      Terdapat {lowStockItems.length} barang yang stoknya kurang
+                      dari 1 kg / 20 pcs.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                  {lowStockItems.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => setActiveTab("inventory")}
+                      className="bg-white p-4 rounded-2xl border border-red-100 shadow-sm flex flex-col gap-2 relative overflow-hidden group hover:border-red-300 transition-colors cursor-pointer"
+                    >
+                      <div className="absolute top-0 left-0 w-1.5 h-full bg-red-500"></div>
+                      <div className="flex justify-between items-start pl-2">
+                        <span className="text-[10px] font-bold text-red-700 bg-red-100 px-2 py-1 rounded-md">
+                          {getBranchName(item.branchId)}
+                        </span>
+                        <span className="text-[10px] font-bold font-mono text-gray-400">
+                          {item.itemCode || "-"}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-gray-800 text-sm leading-snug pl-2 line-clamp-2 mt-1">
+                        {item.name}
+                      </h4>
+                      <div className="mt-auto pl-2 flex justify-between items-end pt-2">
+                        <span className="text-[10px] text-gray-400 font-semibold">
+                          Sisa Aktual:
+                        </span>
+                        <span className="text-lg font-black text-red-600">
+                          {formatWeight(item.stockGrams, item.isPiece)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -1668,8 +1728,8 @@ export default function App() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Cari nama atau kode barang..."
-              className="w-full pl-12 pr-4 py-3 md:py-3.5 rounded-2xl border-0 bg-white shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-amber-400 outline-none transition-all text-sm md:text-base"
+              placeholder="Ketik kode barang (contoh: A1, 234)..."
+              className="w-full pl-12 pr-4 py-3 md:py-3.5 rounded-2xl border-0 bg-white shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-amber-400 outline-none transition-all text-sm md:text-base font-bold font-mono"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -1679,38 +1739,48 @@ export default function App() {
               <div
                 key={product.id}
                 onClick={() => handleOpenAddModal(product)}
-                className={`bg-white rounded-2xl border p-3 md:p-4 cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 relative flex flex-col h-full ${product.stockGrams <= 0 ? "border-red-200 opacity-60 grayscale-[0.5]" : "border-gray-100 hover:border-amber-400 shadow-sm"}`}
+                className={`bg-white rounded-2xl border cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 relative flex flex-col h-full overflow-hidden ${product.stockGrams <= 0 ? "border-red-200 opacity-60 grayscale-[0.5]" : "border-gray-200 hover:border-amber-400 shadow-sm"}`}
               >
-                <div className="absolute top-0 right-0 bg-gray-100 text-gray-600 text-[9px] md:text-[10px] font-bold px-2 py-1 rounded-bl-xl rounded-tr-xl truncate max-w-[60%] font-mono">
-                  {product.itemCode || "-"}
+                {/* HEADER KARTU KHUSUS KODE BARANG */}
+                <div className="bg-gray-900 text-amber-400 font-black px-3 md:px-4 py-2 flex justify-between items-center border-b-2 border-amber-500 shrink-0">
+                  <span className="text-base md:text-lg font-mono tracking-widest">
+                    {product.itemCode || "-"}
+                  </span>
+                  {product.stockGrams <= 0 ? (
+                    <span className="text-[9px] bg-red-500 text-white px-1.5 py-0.5 rounded font-bold">
+                      HABIS
+                    </span>
+                  ) : (
+                    <Package className="w-4 h-4 md:w-5 md:h-5 text-gray-500 opacity-50" />
+                  )}
                 </div>
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-amber-50 to-orange-50 rounded-full flex items-center justify-center mb-2 md:mb-3 shrink-0">
-                  <Package className="w-5 h-5 md:w-6 md:h-6 text-amber-600" />
-                </div>
-                <h3 className="font-bold text-gray-800 leading-snug mb-1 text-sm md:text-base line-clamp-2">
-                  {product.name}
-                </h3>
-                <p className="text-amber-600 font-black text-sm md:text-base mb-2 md:mb-3 mt-auto">
-                  {formatRp(product.pricePerGram)}{" "}
-                  <span className="text-gray-400 text-[10px] md:text-xs font-normal">
-                    / {product.isPiece ? "pcs" : "gr"}
-                  </span>
-                </p>
-                <div className="flex justify-between items-center pt-2 md:pt-3 border-t border-gray-100">
-                  <span className="text-[10px] md:text-xs text-gray-500">
-                    Stok:
-                  </span>
-                  <span
-                    className={`text-xs md:text-sm font-bold ${product.stockGrams < (product.isPiece ? 10 : 1000) ? "text-red-500" : "text-emerald-600"}`}
-                  >
-                    {formatWeight(product.stockGrams, product.isPiece)}
-                  </span>
+
+                <div className="p-3 md:p-4 flex flex-col flex-1">
+                  <h3 className="font-bold text-gray-800 leading-snug mb-2 text-sm md:text-base line-clamp-2">
+                    {product.name}
+                  </h3>
+                  <p className="text-amber-600 font-black text-sm md:text-base mb-3 mt-auto">
+                    {formatRp(product.pricePerGram)}{" "}
+                    <span className="text-gray-400 text-[10px] md:text-xs font-normal">
+                      / {product.isPiece ? "pcs" : "gr"}
+                    </span>
+                  </p>
+                  <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+                    <span className="text-[10px] md:text-xs text-gray-500">
+                      Stok:
+                    </span>
+                    <span
+                      className={`text-xs md:text-sm font-bold ${product.stockGrams < (product.isPiece ? 10 : 1000) ? "text-red-500" : "text-emerald-600"}`}
+                    >
+                      {formatWeight(product.stockGrams, product.isPiece)}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
             {filteredProducts.length === 0 && (
               <div className="col-span-full py-10 text-center text-gray-500">
-                Pencarian tidak ditemukan di cabang ini.
+                Kode barang tidak ditemukan di cabang ini.
               </div>
             )}
           </div>
@@ -2253,7 +2323,7 @@ export default function App() {
             <div className="flex items-center gap-2.5 md:gap-3">
               <img
                 src="/logo.PNG"
-                alt="Logo Toko SHAFIRA"
+                alt="Logo Toko Shafira"
                 className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl shadow-sm shrink-0 object-contain bg-white"
               />
               <div>
