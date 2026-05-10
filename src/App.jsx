@@ -114,31 +114,31 @@ const generateInitialInventory = () => {
       name: "Tembakau Gayo Aceh",
       pricePerGram: 150,
       costPerGram: 100,
-      category: "Nusantara",
+      itemCode: "A1",
     },
     {
       name: "Tembakau Temanggung",
       pricePerGram: 200,
       costPerGram: 140,
-      category: "Nusantara",
+      itemCode: "A2",
     },
     {
       name: "Tembakau Kasturi",
       pricePerGram: 120,
       costPerGram: 80,
-      category: "Nusantara",
+      itemCode: "A3",
     },
     {
       name: "Tembakau Virginia",
       pricePerGram: 250,
       costPerGram: 170,
-      category: "Import Blend",
+      itemCode: "B1",
     },
     {
       name: "Alat Linting (Roller)",
       pricePerGram: 15000,
       costPerGram: 10000,
-      category: "Aksesoris",
+      itemCode: "C1",
       isPiece: true,
     },
   ];
@@ -557,10 +557,13 @@ export default function App() {
     return transactions.filter((trx) => trx.branchId === activeBranch);
   }, [transactions, activeBranch]);
 
-  // --- CART LOGIC ---
+  // --- CART & SEARCH LOGIC ---
   const filteredProducts = useMemo(() => {
-    return branchInventory.filter((p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    const query = searchQuery.toLowerCase();
+    return branchInventory.filter(
+      (p) =>
+        p.name.toLowerCase().includes(query) ||
+        (p.itemCode && p.itemCode.toLowerCase().includes(query)), // Memungkinkan pencarian dari kode barang
     );
   }, [branchInventory, searchQuery]);
 
@@ -784,7 +787,7 @@ export default function App() {
       pricePerGram: 0,
       costPerGram: 0,
       stockGrams: 0,
-      category: "Nusantara",
+      itemCode: "",
       isPiece: false,
       branchId: activeBranch === "all" ? branches[0]?.id || "" : activeBranch,
     });
@@ -1115,7 +1118,7 @@ export default function App() {
                 Toko SHAFIRA
               </h1>
               <p className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1 md:mt-2">
-                Sistem Tembakau
+                Sistem POS Tembakau
               </p>
             </div>
 
@@ -1172,6 +1175,44 @@ export default function App() {
                 Sistem
               </button>
             </form>
+
+            <div className="mt-6 md:mt-8 bg-amber-50 p-3 md:p-4 rounded-xl border border-amber-100">
+              <p className="text-[10px] text-amber-800 font-bold uppercase tracking-widest text-center mb-2 md:mb-3">
+                Akun Demo (Pusat & Cabang)
+              </p>
+              <div className="grid grid-cols-2 gap-2 md:gap-3 text-xs font-medium text-amber-900">
+                <div className="bg-white/60 p-2 rounded-lg text-center">
+                  <p className="font-bold mb-1">👑 Owner (Semua Cabang)</p>
+                  <p>
+                    User:{" "}
+                    <code className="bg-amber-200/50 px-1 rounded font-bold">
+                      admin
+                    </code>
+                  </p>
+                  <p>
+                    Pass:{" "}
+                    <code className="bg-amber-200/50 px-1 rounded font-bold">
+                      admin
+                    </code>
+                  </p>
+                </div>
+                <div className="bg-white/60 p-2 rounded-lg text-center">
+                  <p className="font-bold mb-1">🧑‍💼 Kasir Randuagung</p>
+                  <p>
+                    User:{" "}
+                    <code className="bg-amber-200/50 px-1 rounded font-bold">
+                      kasir_rda
+                    </code>
+                  </p>
+                  <p>
+                    Pass:{" "}
+                    <code className="bg-amber-200/50 px-1 rounded font-bold">
+                      123
+                    </code>
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {toast && (
@@ -1310,7 +1351,7 @@ export default function App() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Cari varian tembakau atau aksesoris..."
+              placeholder="Cari nama atau kode barang..."
               className="w-full pl-12 pr-4 py-3 md:py-3.5 rounded-2xl border-0 bg-white shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-amber-400 outline-none transition-all text-sm md:text-base"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -1323,8 +1364,8 @@ export default function App() {
                 onClick={() => handleOpenAddModal(product)}
                 className={`bg-white rounded-2xl border p-3 md:p-4 cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 relative flex flex-col h-full ${product.stockGrams <= 0 ? "border-red-200 opacity-60 grayscale-[0.5]" : "border-gray-100 hover:border-amber-400 shadow-sm"}`}
               >
-                <div className="absolute top-0 right-0 bg-gray-100 text-gray-600 text-[9px] md:text-[10px] font-bold px-2 py-1 rounded-bl-xl rounded-tr-xl truncate max-w-[60%]">
-                  {product.category}
+                <div className="absolute top-0 right-0 bg-gray-100 text-gray-600 text-[9px] md:text-[10px] font-bold px-2 py-1 rounded-bl-xl rounded-tr-xl truncate max-w-[60%] font-mono">
+                  {product.itemCode || "-"}
                 </div>
                 <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-amber-50 to-orange-50 rounded-full flex items-center justify-center mb-2 md:mb-3 shrink-0">
                   <Package className="w-5 h-5 md:w-6 md:h-6 text-amber-600" />
@@ -1431,7 +1472,7 @@ export default function App() {
                   Nama Produk
                 </th>
                 <th className="pb-3 px-2 text-sm font-bold text-gray-500">
-                  Kategori
+                  Kode
                 </th>
                 {activeBranch === "all" && (
                   <th className="pb-3 px-2 text-sm font-bold text-gray-500">
@@ -1468,8 +1509,8 @@ export default function App() {
                   <td className="py-4 px-2 font-bold text-gray-800">
                     {item.name}
                   </td>
-                  <td className="py-4 px-2 text-sm text-gray-500">
-                    {item.category}
+                  <td className="py-4 px-2 text-sm font-bold font-mono text-gray-500">
+                    {item.itemCode || "-"}
                   </td>
                   {activeBranch === "all" && (
                     <td className="py-4 px-2 text-xs font-bold text-blue-600 bg-blue-50/30 rounded-lg">
@@ -1563,9 +1604,9 @@ export default function App() {
                   <h3 className="font-bold text-gray-900 leading-tight mb-1 text-sm">
                     {item.name}
                   </h3>
-                  <div className="flex gap-1.5">
-                    <span className="text-[9px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md font-semibold">
-                      {item.category}
+                  <div className="flex gap-1.5 mt-1">
+                    <span className="text-[9px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md font-bold font-mono">
+                      {item.itemCode || "-"}
                     </span>
                     {activeBranch === "all" && (
                       <span className="text-[9px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md font-bold">
@@ -1884,7 +1925,7 @@ export default function App() {
             <div className="flex items-center gap-2.5 md:gap-3">
               <img
                 src="/logo.PNG"
-                alt="Logo Toko Safira"
+                alt="Logo Toko Shafira"
                 className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl shadow-sm shrink-0 object-contain bg-white"
               />
               <div>
@@ -2315,8 +2356,6 @@ export default function App() {
                                 </p>
                               </div>
                             </div>
-                            {/* Tombol Hapus Cabang (Opsi jika diperlukan ke depannya) */}
-                            {/* <button className="p-1.5 md:p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4"/></button> */}
                           </div>
                         ))}
                       </div>
@@ -2633,8 +2672,8 @@ export default function App() {
                 </button>
               </div>
               {!isAddingNew && (
-                <p className="text-amber-600 font-bold mt-2 text-xs md:text-sm bg-amber-50 inline-block px-2.5 md:px-3 py-1 rounded-lg shrink-0 w-fit">
-                  {editingProduct.name}
+                <p className="text-amber-600 font-bold mt-2 text-xs md:text-sm bg-amber-50 inline-block px-2.5 md:px-3 py-1 rounded-lg shrink-0 w-fit font-mono">
+                  {editingProduct.itemCode || "-"} | {editingProduct.name}
                 </p>
               )}
             </div>
@@ -2686,23 +2725,20 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs md:text-sm font-bold text-gray-700 mb-1.5 md:mb-2">
-                      Kategori
+                      Kode Barang
                     </label>
-                    <select
+                    <input
+                      type="text"
                       className="w-full p-3 md:p-4 border-2 border-gray-200 rounded-xl focus:border-amber-500 outline-none font-bold text-sm md:text-base transition-all bg-white"
-                      value={editingProduct.category}
+                      value={editingProduct.itemCode || ""}
+                      placeholder="Contoh: A1"
                       onChange={(e) =>
                         setEditingProduct({
                           ...editingProduct,
-                          category: e.target.value,
+                          itemCode: e.target.value.toUpperCase(),
                         })
                       }
-                    >
-                      <option value="Nusantara">Nusantara</option>
-                      <option value="Import Blend">Import Blend</option>
-                      <option value="Premium">Premium</option>
-                      <option value="Aksesoris">Aksesoris</option>
-                    </select>
+                    />
                   </div>
                   <div>
                     <label className="block text-xs md:text-sm font-bold text-gray-700 mb-1.5 md:mb-2">
