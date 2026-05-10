@@ -29,6 +29,7 @@ import {
   Users,
   UserPlus,
   Filter,
+  Building,
 } from "lucide-react";
 import { initializeApp } from "firebase/app";
 import {
@@ -70,22 +71,15 @@ const auth = app ? getAuth(app) : null;
 const db = app ? getFirestore(app) : null;
 const appId = typeof __app_id !== "undefined" ? __app_id : "takopos-cloud";
 
-// --- KONFIGURASI CABANG ---
-const BRANCHES = [
+// --- DATA AWAL (MOCK DATABASE) ---
+
+const INITIAL_BRANCHES = [
   { id: "br_01", name: "Randuagung" },
   { id: "br_02", name: "Pasar Randuagung" },
   { id: "br_03", name: "Tunjung" },
   { id: "br_04", name: "Jatiroto" },
   { id: "br_05", name: "Sumber Baru" },
 ];
-
-const getBranchName = (branchId) => {
-  if (branchId === "all") return "Semua Cabang";
-  const branch = BRANCHES.find((b) => b.id === branchId);
-  return branch ? branch.name : "Tidak Diketahui";
-};
-
-// --- DATA AWAL (MOCK DATABASE) ---
 
 const INITIAL_USERS = [
   {
@@ -151,7 +145,7 @@ const generateInitialInventory = () => {
 
   let inventory = [];
   let idCounter = 1;
-  BRANCHES.forEach((branch) => {
+  INITIAL_BRANCHES.forEach((branch) => {
     baseItems.forEach((item) => {
       inventory.push({
         id: idCounter++,
@@ -209,6 +203,10 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [branches, setBranches] = useState(() => {
+    const saved = localStorage.getItem("tako_branches");
+    return saved ? JSON.parse(saved) : INITIAL_BRANCHES;
+  });
 
   // UI & MODALS STATE
   const [toast, setToast] = useState(null);
@@ -226,17 +224,19 @@ export default function App() {
   const [confirmDeleteTransactionId, setConfirmDeleteTransactionId] =
     useState(null);
 
-  // PROFILE & TEAM MANAGEMENT STATE
+  // PROFILE, TEAM, & BRANCH MANAGEMENT STATE
   const [profileModal, setProfileModal] = useState(false);
-  const [profileTab, setProfileTab] = useState("security");
+  const [profileTab, setProfileTab] = useState("security"); // 'security', 'team', 'branches'
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [newUser, setNewUser] = useState({
     username: "",
     password: "",
     name: "",
     role: "Kasir",
-    branchId: "br_01",
+    branchId: branches[0]?.id || "",
   });
+  const [isAddingBranch, setIsAddingBranch] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
 
   // FILTER LAPORAN STATE
   const [filterMode, setFilterMode] = useState("month");
@@ -259,11 +259,25 @@ export default function App() {
     else if (mode === "year") setSelectedFilterValue(`${d.getFullYear()}`);
   };
 
+  const getBranchName = (branchId) => {
+    if (branchId === "all") return "Semua Cabang";
+    const branch = branches.find((b) => b.id === branchId);
+    return branch ? branch.name : "Tidak Diketahui";
+  };
+
   // --- LOCAL STORAGE EFFECTS ---
   useEffect(() => {
     localStorage.setItem("tako_users", JSON.stringify(users));
   }, [users]);
-
+  useEffect(() => {
+    localStorage.setItem("tako_inventory", JSON.stringify(inventory));
+  }, [inventory]);
+  useEffect(() => {
+    localStorage.setItem("tako_transactions", JSON.stringify(transactions));
+  }, [transactions]);
+  useEffect(() => {
+    localStorage.setItem("tako_branches", JSON.stringify(branches));
+  }, [branches]);
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem("tako_currentUser", JSON.stringify(currentUser));
@@ -276,14 +290,6 @@ export default function App() {
       localStorage.removeItem("tako_currentUser");
     }
   }, [currentUser]);
-
-  useEffect(() => {
-    localStorage.setItem("tako_inventory", JSON.stringify(inventory));
-  }, [inventory]);
-
-  useEffect(() => {
-    localStorage.setItem("tako_transactions", JSON.stringify(transactions));
-  }, [transactions]);
 
   // --- FIREBASE CLOUD EFFECTS ---
   useEffect(() => {
@@ -369,10 +375,27 @@ export default function App() {
       (err) => console.error("Sync Error:", err),
     );
 
+    const unsubBranches = onSnapshot(
+      collection(db, "artifacts", appId, "public", "data", "branches"),
+      (snapshot) => {
+        if (!snapshot.empty)
+          setBranches(snapshot.docs.map((doc) => doc.data()));
+        else
+          INITIAL_BRANCHES.forEach((b) =>
+            setDoc(
+              doc(db, "artifacts", appId, "public", "data", "branches", b.id),
+              b,
+            ),
+          );
+      },
+      (err) => console.error("Sync Error:", err),
+    );
+
     return () => {
       unsubUsers();
       unsubInv();
       unsubTrx();
+      unsubBranches();
     };
   }, [fbUser]);
 
@@ -388,10 +411,8 @@ export default function App() {
     );
     if (user) {
       setCurrentUser(user);
-
-      if (user.role === "Owner") {
-        setActiveBranch("all");
-      } else {
+      if (user.role === "Owner") setActiveBranch("all");
+      else {
         setActiveBranch(user.branchId);
         handleFilterModeChange("day");
       }
@@ -450,7 +471,12 @@ export default function App() {
       showToast("Username sudah terpakai!", "error");
       return;
     }
-    if (!newUser.name || !newUser.username || !newUser.password) {
+    if (
+      !newUser.name ||
+      !newUser.username ||
+      !newUser.password ||
+      !newUser.branchId
+    ) {
       showToast("Mohon lengkapi semua data!", "error");
       return;
     }
@@ -477,7 +503,7 @@ export default function App() {
       password: "",
       name: "",
       role: "Kasir",
-      branchId: "br_01",
+      branchId: branches[0]?.id || "",
     });
     showToast(
       `Akun kasir berhasil dibuat untuk ${getBranchName(newUserObj.branchId)}`,
@@ -495,6 +521,29 @@ export default function App() {
       );
     else setUsers(users.filter((u) => u.id !== id));
     showToast("Akun karyawan dihapus");
+  };
+
+  // --- BRANCH MANAGEMENT LOGIC ---
+  const handleCreateBranch = (e) => {
+    e.preventDefault();
+    if (!newBranchName.trim()) {
+      showToast("Nama cabang tidak boleh kosong!", "error");
+      return;
+    }
+
+    const newBranchId = `br_${Date.now().toString().slice(-4)}`;
+    const newBranchObj = { id: newBranchId, name: newBranchName.trim() };
+
+    if (fbUser && db)
+      setDoc(
+        doc(db, "artifacts", appId, "public", "data", "branches", newBranchId),
+        newBranchObj,
+      );
+    else setBranches([...branches, newBranchObj]);
+
+    setIsAddingBranch(false);
+    setNewBranchName("");
+    showToast(`Cabang ${newBranchObj.name} berhasil ditambahkan`);
   };
 
   // --- DATA FILTERING BY BRANCH ---
@@ -737,7 +786,7 @@ export default function App() {
       stockGrams: 0,
       category: "Nusantara",
       isPiece: false,
-      branchId: activeBranch === "all" ? "br_01" : activeBranch,
+      branchId: activeBranch === "all" ? branches[0]?.id || "" : activeBranch,
     });
   };
 
@@ -926,7 +975,6 @@ export default function App() {
     );
   };
 
-  // --- FUNGSI CETAK PDF LAPORAN KASIR ---
   const handleSavePDF = () => {
     if (filteredHistory.length === 0) {
       showToast("Tidak ada data untuk dicetak.", "error");
@@ -975,8 +1023,6 @@ export default function App() {
           .summary-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 15px; font-weight: 600; color: #555; }
           .summary-total { font-size: 22px; font-weight: 900; color: #111; margin-top: 15px; padding-top: 15px; border-top: 2px dashed #ccc; }
           .footer { text-align: center; margin-top: 50px; font-size: 11px; color: #aaa; }
-          
-          /* CSS Khusus Print untuk hasil PDF yang rapi */
           @media print {
             @page { margin: 15mm; }
             body { padding: 0; background: white; max-width: 100%; }
@@ -986,62 +1032,34 @@ export default function App() {
       </head>
       <body>
         <div class="header">
-          <h1 class="title">Toko SAFIRA</h1>
+          <h1 class="title">Toko SHAFIRA</h1>
           <div class="subtitle">Laporan Penjualan Cabang</div>
           <div class="meta">
-            <div>
-              <strong>Kasir:</strong> ${namaKasir}<br>
-              <strong style="display:inline-block; margin-top:5px;">Cabang:</strong> ${namaCabang}
-            </div>
-            <div style="text-align: right;">
-              <strong>Periode:</strong> ${periode}<br>
-              <strong style="display:inline-block; margin-top:5px;">Dicetak:</strong> ${tanggalCetak} ${waktuCetak}
-            </div>
+            <div><strong>Kasir:</strong> ${namaKasir}<br><strong style="display:inline-block; margin-top:5px;">Cabang:</strong> ${namaCabang}</div>
+            <div style="text-align: right;"><strong>Periode:</strong> ${periode}<br><strong style="display:inline-block; margin-top:5px;">Dicetak:</strong> ${tanggalCetak} ${waktuCetak}</div>
           </div>
         </div>
-
         <div class="section-title">Rincian Barang Terjual</div>
         ${dailyItemsSummary
           .map(
             (item) => `
           <div class="item">
-            <div>
-              <div class="item-name">${item.name}</div>
-              <div class="item-weight">${formatWeight(item.weight, item.isPiece)}</div>
-            </div>
+            <div><div class="item-name">${item.name}</div><div class="item-weight">${formatWeight(item.weight, item.isPiece)}</div></div>
             <div class="item-total">${formatRp(item.total)}</div>
           </div>
         `,
           )
           .join("")}
         ${dailyItemsSummary.length === 0 ? '<p style="text-align:center; font-style:italic; color:#999; font-size:14px; padding: 20px;">Belum ada penjualan pada periode ini</p>' : ""}
-
         <div class="summary">
-          <div class="summary-row">
-            <span>Total Transaksi Selesai</span>
-            <span>${filteredHistory.length} Transaksi</span>
-          </div>
-          <div class="summary-row summary-total">
-            <span>TOTAL UANG SETORAN</span>
-            <span>${formatRp(totalSetoran)}</span>
-          </div>
+          <div class="summary-row"><span>Total Transaksi Selesai</span><span>${filteredHistory.length} Transaksi</span></div>
+          <div class="summary-row summary-total"><span>TOTAL UANG SETORAN</span><span>${formatRp(totalSetoran)}</span></div>
         </div>
-
-        <div class="footer">
-          Dokumen sah dihasilkan secara otomatis oleh Sistem TakoPOS.<br>
-          Dicetak dari aplikasi web kasir.
-        </div>
-
-        <script>
-          window.onload = () => {
-            // Memanggil fitur Print bawaan Browser (Bisa di-Save as PDF)
-            window.print();
-          }
-        </script>
+        <div class="footer">Dokumen sah dihasilkan secara otomatis oleh Sistem TakoPOS.<br>Dicetak dari aplikasi web kasir.</div>
+        <script>window.onload = () => { window.print(); }</script>
       </body>
       </html>
     `;
-
     printWindow.document.write(htmlContent);
     printWindow.document.close();
     setDailyReportModal(false);
@@ -1058,7 +1076,6 @@ export default function App() {
   // ==========================================
   // RENDERER: LOGIN SCREEN
   // ==========================================
-
   if (!currentUser) {
     const LoginScreen = () => {
       const [user, setUser] = useState("");
@@ -1880,7 +1897,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* SELEKTOR CABANG (KHUSUS OWNER) */}
             {currentUser?.role === "Owner" && (
               <div className="hidden sm:flex relative items-center ml-4 shrink-0">
                 <MapPin className="absolute left-3 w-4 h-4 text-amber-600 z-10" />
@@ -1890,7 +1906,7 @@ export default function App() {
                   className="pl-9 pr-8 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-500/20 appearance-none shadow-sm cursor-pointer hover:bg-amber-100 transition-colors"
                 >
                   <option value="all">🌍 Semua Cabang</option>
-                  {BRANCHES.map((b) => (
+                  {branches.map((b) => (
                     <option key={b.id} value={b.id}>
                       📍 {b.name}
                     </option>
@@ -1937,7 +1953,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* FILTER CABANG MOBILE (KHUSUS OWNER) */}
       {currentUser?.role === "Owner" && (
         <div className="sm:hidden px-4 py-2 bg-white border-b border-gray-200 z-10">
           <div className="relative">
@@ -1948,7 +1963,7 @@ export default function App() {
               className="w-full pl-9 pr-8 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm font-bold text-amber-900 outline-none focus:ring-2 focus:ring-amber-500/20 appearance-none shadow-sm cursor-pointer"
             >
               <option value="all">🌍 Tampilkan Semua Cabang</option>
-              {BRANCHES.map((b) => (
+              {branches.map((b) => (
                 <option key={b.id} value={b.id}>
                   📍 Cabang {b.name}
                 </option>
@@ -1966,7 +1981,7 @@ export default function App() {
         {activeTab === "history" && renderHistory()}
       </main>
 
-      {/* BOTTOM NAVIGATION (Hanya Muncul di Mobile) */}
+      {/* BOTTOM NAVIGATION */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-md border-t border-gray-200 pb-safe">
         <div className="flex justify-around items-center px-2 py-1.5">
           {NavItems.map((tab) => {
@@ -1997,7 +2012,7 @@ export default function App() {
 
       {/* --- MODALS --- */}
 
-      {/* Modal 0: PROFILE & TEAM MANAGEMENT */}
+      {/* Modal 0: PROFILE, TEAM, & BRANCH MANAGEMENT */}
       {profileModal && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden pb-safe max-h-[90dvh] flex flex-col">
@@ -2006,6 +2021,7 @@ export default function App() {
                 onClick={() => {
                   setProfileModal(false);
                   setIsAddingUser(false);
+                  setIsAddingBranch(false);
                 }}
                 className="absolute top-3 right-3 text-gray-400 hover:text-white bg-white/10 p-1.5 rounded-full transition-colors"
               >
@@ -2030,16 +2046,29 @@ export default function App() {
                   onClick={() => {
                     setProfileTab("security");
                     setIsAddingUser(false);
+                    setIsAddingBranch(false);
                   }}
-                  className={`flex-1 py-2.5 md:py-3 text-xs md:text-sm font-bold flex justify-center items-center gap-1.5 md:gap-2 border-b-2 transition-colors ${profileTab === "security" ? "border-amber-500 text-amber-600" : "border-transparent text-gray-500 hover:bg-gray-50"}`}
+                  className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-xs font-bold flex justify-center items-center gap-1.5 border-b-2 transition-colors ${profileTab === "security" ? "border-amber-500 text-amber-600" : "border-transparent text-gray-500 hover:bg-gray-50"}`}
                 >
                   <Lock className="w-3.5 h-3.5 md:w-4 md:h-4" /> Akun Saya
                 </button>
                 <button
-                  onClick={() => setProfileTab("team")}
-                  className={`flex-1 py-2.5 md:py-3 text-xs md:text-sm font-bold flex justify-center items-center gap-1.5 md:gap-2 border-b-2 transition-colors ${profileTab === "team" ? "border-amber-500 text-amber-600" : "border-transparent text-gray-500 hover:bg-gray-50"}`}
+                  onClick={() => {
+                    setProfileTab("team");
+                    setIsAddingBranch(false);
+                  }}
+                  className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-xs font-bold flex justify-center items-center gap-1.5 border-b-2 transition-colors ${profileTab === "team" ? "border-amber-500 text-amber-600" : "border-transparent text-gray-500 hover:bg-gray-50"}`}
                 >
                   <Users className="w-3.5 h-3.5 md:w-4 md:h-4" /> Kelola Tim
+                </button>
+                <button
+                  onClick={() => {
+                    setProfileTab("branches");
+                    setIsAddingUser(false);
+                  }}
+                  className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-xs font-bold flex justify-center items-center gap-1.5 border-b-2 transition-colors ${profileTab === "branches" ? "border-amber-500 text-amber-600" : "border-transparent text-gray-500 hover:bg-gray-50"}`}
+                >
+                  <Building className="w-3.5 h-3.5 md:w-4 md:h-4" /> Cabang
                 </button>
               </div>
             )}
@@ -2218,7 +2247,6 @@ export default function App() {
                           className="w-full p-2.5 md:p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none text-xs md:text-sm font-bold transition-all"
                         />
 
-                        {/* Pilihan Cabang Untuk Kasir Baru */}
                         <div className="relative">
                           <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                           <select
@@ -2232,7 +2260,7 @@ export default function App() {
                             }
                             className="w-full pl-9 p-2.5 md:p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none text-xs md:text-sm font-bold transition-all appearance-none"
                           >
-                            {BRANCHES.map((b) => (
+                            {branches.map((b) => (
                               <option key={b.id} value={b.id}>
                                 Tugaskan di: {b.name}
                               </option>
@@ -2247,6 +2275,91 @@ export default function App() {
                           Simpan Akun Baru
                         </button>
                       </form>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB KELOLA CABANG BARU */}
+              {profileTab === "branches" && currentUser.role === "Owner" && (
+                <div className="space-y-3 md:space-y-4">
+                  {!isAddingBranch ? (
+                    <>
+                      <div className="flex justify-between items-center mb-1 md:mb-2">
+                        <p className="text-xs md:text-sm font-bold text-gray-800">
+                          Daftar Lokasi Cabang
+                        </p>
+                        <button
+                          onClick={() => setIsAddingBranch(true)}
+                          className="text-[10px] md:text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <PlusCircle className="w-3 h-3" /> Tambah Cabang
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {branches.map((b) => (
+                          <div
+                            key={b.id}
+                            className="flex justify-between items-center p-2.5 md:p-3 border border-gray-100 rounded-xl bg-gray-50/50"
+                          >
+                            <div className="flex items-center gap-2 md:gap-3">
+                              <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                                <Store className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <p className="text-xs md:text-sm font-bold text-gray-900 leading-tight">
+                                  {b.name}
+                                </p>
+                                <p className="text-[9px] md:text-[10px] text-gray-500 font-medium font-mono">
+                                  {b.id}
+                                </p>
+                              </div>
+                            </div>
+                            {/* Tombol Hapus Cabang (Opsi jika diperlukan ke depannya) */}
+                            {/* <button className="p-1.5 md:p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4"/></button> */}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                      <div className="flex items-center gap-2 mb-3 md:mb-4">
+                        <button
+                          onClick={() => setIsAddingBranch(false)}
+                          className="p-1 md:p-1.5 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200"
+                        >
+                          <ChevronUp className="w-4 h-4 -rotate-90" />
+                        </button>
+                        <p className="text-xs md:text-sm font-bold text-gray-800">
+                          Buat Cabang Baru
+                        </p>
+                      </div>
+                      <form
+                        onSubmit={handleCreateBranch}
+                        className="space-y-2.5 md:space-y-3"
+                      >
+                        <input
+                          type="text"
+                          required
+                          placeholder="Nama Cabang (Cth: Lumajang Kota)"
+                          value={newBranchName}
+                          onChange={(e) => setNewBranchName(e.target.value)}
+                          className="w-full p-2.5 md:p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none text-xs md:text-sm font-bold transition-all"
+                        />
+                        <button
+                          type="submit"
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 md:py-3.5 rounded-xl transition-colors text-xs md:text-sm mt-1 md:mt-2 shadow-lg shadow-blue-600/20 min-h-[44px]"
+                        >
+                          Simpan Cabang
+                        </button>
+                      </form>
+                      <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                        <p className="text-[10px] text-blue-800 font-bold text-center">
+                          Menambah cabang akan secara otomatis tersedia di
+                          daftar pilihan saat mendaftarkan kasir dan menambah
+                          stok gudang.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2528,7 +2641,6 @@ export default function App() {
 
             <div className="px-4 md:px-6 py-2 overflow-y-auto custom-scrollbar flex-1">
               <div className="space-y-4 md:space-y-5 mb-4">
-                {/* Pemilihan Cabang (Khusus Jika Menambah di Mode "Semua Cabang") */}
                 {isAddingNew && activeBranch === "all" && (
                   <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
                     <label className="block text-xs md:text-sm font-bold text-blue-900 mb-1.5">
@@ -2544,7 +2656,7 @@ export default function App() {
                       }
                       className="w-full p-2.5 bg-white border border-blue-200 rounded-lg text-sm font-bold text-blue-800 outline-none"
                     >
-                      {BRANCHES.map((b) => (
+                      {branches.map((b) => (
                         <option key={b.id} value={b.id}>
                           {b.name}
                         </option>
@@ -2737,7 +2849,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal 6: Transaction Delete Confirmation (HANYA OWNER) */}
+      {/* Modal 6: Transaction Delete Confirmation */}
       {confirmDeleteTransactionId && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
           <div className="bg-white rounded-3xl p-5 md:p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200 text-center">
@@ -2766,111 +2878,6 @@ export default function App() {
               >
                 Ya, Hapus
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal 7: Cetak Laporan Harian (KHUSUS KASIR) */}
-      {dailyReportModal && (
-        <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="relative animate-in zoom-in-95 duration-300 w-full max-w-[340px]">
-            <button
-              onClick={() => setDailyReportModal(false)}
-              className="absolute -top-4 -right-4 text-gray-500 bg-white hover:bg-gray-100 hover:text-gray-800 rounded-full p-2 shadow-xl border border-gray-200 transition-colors z-10"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="bg-white w-full rounded-xl shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden">
-              <div className="p-5 md:p-6 pb-4 shrink-0 text-center border-b-2 border-dashed border-gray-300">
-                <div className="w-12 h-12 bg-gray-900 rounded-xl mx-auto mb-3 flex items-center justify-center">
-                  <FileText className="text-white w-6 h-6" />
-                </div>
-                <h2 className="font-black text-2xl text-gray-900 tracking-tight">
-                  Toko SHAFIRA
-                </h2>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">
-                  Laporan Penjualan
-                </p>
-                <div className="mt-4 text-[10px] text-gray-500 flex justify-between items-center bg-gray-50 p-2 rounded-lg font-mono">
-                  <span>
-                    {formatFilterLabel(selectedFilterValue, filterMode)}
-                  </span>
-                  <span>
-                    {new Date().toLocaleTimeString("id-ID", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-              </div>
-
-              <div className="px-5 md:px-6 py-4 overflow-y-auto custom-scrollbar flex-1">
-                <div className="space-y-3">
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2 mb-2">
-                    Rincian Terjual
-                  </div>
-                  {dailyItemsSummary.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="flex justify-between items-start text-sm"
-                    >
-                      <div className="pr-3">
-                        <p className="font-bold text-gray-800 leading-tight">
-                          {item.name}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-0.5 font-medium">
-                          {formatWeight(item.weight, item.isPiece)}
-                        </p>
-                      </div>
-                      <p className="font-black text-gray-900">
-                        {formatRp(item.total)}
-                      </p>
-                    </div>
-                  ))}
-                  {dailyItemsSummary.length === 0 && (
-                    <p className="text-xs text-gray-400 text-center italic mt-4">
-                      Belum ada penjualan
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-5 md:p-6 pt-0 shrink-0">
-                <div className="space-y-2 mb-5 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <div className="flex justify-between text-xs text-gray-600 font-medium">
-                    <span>Total Transaksi</span>
-                    <span>{filteredHistory.length}</span>
-                  </div>
-                  <div className="flex justify-between font-black text-lg text-gray-900 mt-2 pt-2 border-t border-gray-200">
-                    <span>SETORAN</span>
-                    <span>
-                      {formatRp(
-                        filteredHistory.reduce(
-                          (acc, curr) => acc + curr.total,
-                          0,
-                        ),
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-[10px] text-gray-400 font-medium mt-3 pt-3 border-t border-gray-200 border-dashed">
-                    <span>Kasir: {currentUser?.name}</span>
-                    <span>{getBranchName(currentUser?.branchId)}</span>
-                  </div>
-                </div>
-
-                {/* Tombol Diganti Menjadi Simpan Laporan PDF */}
-                <button
-                  onClick={handleSavePDF}
-                  className="w-full min-h-[48px] flex items-center justify-center gap-2 border-2 border-emerald-600 bg-emerald-50 text-emerald-700 font-black py-3 rounded-xl hover:bg-emerald-600 hover:text-white transition-colors active:scale-95 shrink-0 text-sm"
-                >
-                  <Download className="w-5 h-5 shrink-0" />{" "}
-                  <span className="whitespace-nowrap">
-                    Simpan Laporan (PDF)
-                  </span>
-                </button>
-              </div>
             </div>
           </div>
         </div>
