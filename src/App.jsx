@@ -1090,7 +1090,7 @@ export default function App() {
 
             <div className="text-center mb-8 md:mb-10 mt-2">
               <img
-                src="/logo.png"
+                src="/logo.PNG"
                 alt="Logo Toko Safira"
                 className="w-16 h-16 md:w-20 md:h-20 mx-auto rounded-2xl shadow-xl mb-4 md:mb-6 object-contain bg-white"
               />
@@ -1866,7 +1866,7 @@ export default function App() {
           <div className="flex flex-row justify-between items-center py-2.5 md:py-3 sm:h-16 gap-3 sm:gap-0">
             <div className="flex items-center gap-2.5 md:gap-3">
               <img
-                src="/logo.png"
+                src="/logo.PNG"
                 alt="Logo Toko Safira"
                 className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl shadow-sm shrink-0 object-contain bg-white"
               />
