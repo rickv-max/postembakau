@@ -1115,7 +1115,7 @@ export default function App() {
                 Toko SHAFIRA
               </h1>
               <p className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1 md:mt-2">
-                Sistem Autentikasi
+                Sistem Tembakau
               </p>
             </div>
 
