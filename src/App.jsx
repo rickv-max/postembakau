@@ -1095,7 +1095,7 @@ export default function App() {
                 className="w-16 h-16 md:w-20 md:h-20 mx-auto rounded-2xl shadow-xl mb-4 md:mb-6 object-contain bg-white"
               />
               <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
-                Toko SAFIRA
+                Toko SHAFIRA
               </h1>
               <p className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1 md:mt-2">
                 Sistem Autentikasi
@@ -1872,7 +1872,7 @@ export default function App() {
               />
               <div>
                 <h1 className="font-black text-lg md:text-xl text-gray-900 leading-none tracking-tight">
-                  Toko SAFIRA
+                  Toko SHAFIRA
                 </h1>
                 <p className="text-[8px] md:text-[9px] font-bold text-gray-500 uppercase tracking-[0.2em] mt-0.5">
                   Sistem Tembakau
@@ -2426,7 +2426,7 @@ export default function App() {
                   <Receipt className="text-white w-6 h-6" />
                 </div>
                 <h2 className="font-black text-2xl text-gray-900 tracking-tight">
-                  Toko SAFIRA
+                  Toko SHAFIRA
                 </h2>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">
                   Struk Pembelian
@@ -2788,7 +2788,7 @@ export default function App() {
                   <FileText className="text-white w-6 h-6" />
                 </div>
                 <h2 className="font-black text-2xl text-gray-900 tracking-tight">
-                  Toko SAFIRA
+                  Toko SHAFIRA
                 </h2>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">
                   Laporan Penjualan
