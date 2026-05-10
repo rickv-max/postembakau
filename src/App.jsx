@@ -30,6 +30,7 @@ import {
   UserPlus,
   Filter,
   Building,
+  Tag,
 } from "lucide-react";
 import { initializeApp } from "firebase/app";
 import {
@@ -425,10 +426,9 @@ const generateInitialInventory = () => {
   const addItems = (branchId, itemsArr) => {
     itemsArr.forEach((itemStr) => {
       const [name, code] = itemStr.split("|");
-      // Harga dan Stok Dibuat Random
-      const cost = Math.floor(Math.random() * 8 + 5) * 10; // Modal 50 s.d 120
-      const price = cost + Math.floor(Math.random() * 5 + 3) * 10; // Jual modal + 30 s.d 70
-      const stock = Math.floor(Math.random() * 90 + 10) * 100; // Stok 1000 s.d 10000 gr
+      const cost = Math.floor(Math.random() * 8 + 5) * 10;
+      const price = cost + Math.floor(Math.random() * 5 + 3) * 10;
+      const stock = Math.floor(Math.random() * 90 + 10) * 100;
 
       inventory.push({
         id: idCounter++,
@@ -444,11 +444,11 @@ const generateInitialInventory = () => {
     });
   };
 
-  addItems("br_01", rdaData); // Randuagung
-  addItems("br_02", sumberbaruData); // Pasar Randuagung disamakan dengan Sumber Baru
-  addItems("br_03", tunjungData); // Tunjung
-  addItems("br_04", jatirotoData); // Jatiroto
-  addItems("br_05", sumberbaruData); // Sumber Baru
+  addItems("br_01", rdaData);
+  addItems("br_02", sumberbaruData);
+  addItems("br_03", tunjungData);
+  addItems("br_04", jatirotoData);
+  addItems("br_05", sumberbaruData);
 
   return inventory;
 };
@@ -509,7 +509,11 @@ export default function App() {
   const [weightInput, setWeightInput] = useState("");
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [checkoutModal, setCheckoutModal] = useState(false);
+
+  // CHECKOUT STATE (INCLUDING DISCOUNT)
   const [cashInput, setCashInput] = useState("");
+  const [discountInput, setDiscountInput] = useState("");
+
   const [receiptModal, setReceiptModal] = useState(null);
   const [dailyReportModal, setDailyReportModal] = useState(false);
 
@@ -521,7 +525,7 @@ export default function App() {
 
   // PROFILE, TEAM, & BRANCH MANAGEMENT STATE
   const [profileModal, setProfileModal] = useState(false);
-  const [profileTab, setProfileTab] = useState("security"); // 'security', 'team', 'branches'
+  const [profileTab, setProfileTab] = useState("security");
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [newUser, setNewUser] = useState({
     username: "",
@@ -642,10 +646,6 @@ export default function App() {
         if (!snapshot.empty) {
           const cloudData = snapshot.docs.map((doc) => doc.data());
           setInventory(cloudData);
-
-          // --- SKRIP AUTO SEED / FORCE UPLOAD ---
-          // Jika data di awan hanya berisi data uji coba yang lama (< 50 barang)
-          // secara otomatis paksa upload ratusan data INITIAL_INVENTORY yang baru.
           if (cloudData.length < 50 && INITIAL_INVENTORY.length > 300) {
             console.log(
               "Mendeteksi sisa data lama. Mengunggah data master baru ke Cloud...",
@@ -883,7 +883,7 @@ export default function App() {
     return branchInventory.filter(
       (p) =>
         p.name.toLowerCase().includes(query) ||
-        (p.itemCode && p.itemCode.toLowerCase().includes(query)), // Memungkinkan pencarian dari kode barang
+        (p.itemCode && p.itemCode.toLowerCase().includes(query)),
     );
   }, [branchInventory, searchQuery]);
 
@@ -893,6 +893,12 @@ export default function App() {
       0,
     );
   }, [cart]);
+
+  // Hitung Final Total dengan Diskon (secara real-time di UI)
+  const cartFinalTotal = useMemo(() => {
+    const discountVal = parseInt(discountInput.replace(/\D/g, "")) || 0;
+    return Math.max(0, cartTotal - discountVal);
+  }, [cartTotal, discountInput]);
 
   const handleOpenAddModal = (product) => {
     if (product.stockGrams <= 0) {
@@ -948,8 +954,11 @@ export default function App() {
   };
 
   const handleProcessPayment = () => {
+    const discountVal = parseInt(discountInput.replace(/\D/g, "")) || 0;
+    const finalTotal = Math.max(0, cartTotal - discountVal);
+
     const cash = parseInt(cashInput.replace(/\D/g, ""));
-    if (!cash || cash < cartTotal) {
+    if (!cash || cash < finalTotal) {
       showToast("Uang pembayaran kurang!", "error");
       return;
     }
@@ -985,16 +994,19 @@ export default function App() {
       (sum, item) => sum + (item.costPerGram || 0) * item.weight,
       0,
     );
+    const transactionProfit = finalTotal - transactionTotalCost;
 
     const transaction = {
       id: `TRX-${Date.now().toString().slice(-6)}`,
       date: new Date().toISOString(),
       items: [...cart],
-      total: cartTotal,
+      subTotal: cartTotal, // Menyimpan Harga Asli sblm Diskon
+      discount: discountVal, // Menyimpan Jumlah Diskon
+      total: finalTotal, // Harga Akhir yg dibayar
       totalCost: transactionTotalCost,
-      profit: cartTotal - transactionTotalCost,
+      profit: transactionProfit,
       cash: cash,
-      change: cash - cartTotal,
+      change: cash - finalTotal,
       cashier: currentUser.name,
       branchId: activeBranch,
     };
@@ -1018,6 +1030,7 @@ export default function App() {
     setCheckoutModal(false);
     setIsMobileCartOpen(false);
     setCashInput("");
+    setDiscountInput("");
 
     if (currentUser?.role === "Owner") {
       setReceiptModal(transaction);
@@ -1208,6 +1221,8 @@ export default function App() {
       "Nama Kasir",
       "Daftar Pembelian",
       "Total Modal (Kulak)",
+      "Subtotal",
+      "Diskon",
       "Total Pendapatan Jual",
       "Keuntungan Bersih",
       "Tunai",
@@ -1215,6 +1230,8 @@ export default function App() {
     ];
 
     let grandTotalCost = 0;
+    let grandSubTotal = 0;
+    let grandDiscount = 0;
     let grandTotal = 0;
     let grandProfit = 0;
     let grandCash = 0;
@@ -1234,10 +1251,15 @@ export default function App() {
               (sum, item) => sum + (item.costPerGram || 0) * item.weight,
               0,
             );
+
+      const trxSubTotal = trx.subTotal !== undefined ? trx.subTotal : trx.total;
+      const trxDiscount = trx.discount !== undefined ? trx.discount : 0;
       const trxProfit =
         trx.profit !== undefined ? trx.profit : trx.total - trxCost;
 
       grandTotalCost += trxCost;
+      grandSubTotal += trxSubTotal;
+      grandDiscount += trxDiscount;
       grandTotal += trx.total;
       grandProfit += trxProfit;
       grandCash += trx.cash;
@@ -1251,6 +1273,8 @@ export default function App() {
         `"${trx.cashier || "-"}"`,
         `"${itemsStr}"`,
         trxCost,
+        trxSubTotal,
+        trxDiscount,
         trx.total,
         trxProfit,
         trx.cash,
@@ -1266,6 +1290,8 @@ export default function App() {
       `""`,
       `"TOTAL KESELURUHAN"`,
       grandTotalCost,
+      grandSubTotal,
+      grandDiscount,
       grandTotal,
       grandProfit,
       grandCash,
@@ -1317,6 +1343,11 @@ export default function App() {
       (acc, curr) => acc + curr.total,
       0,
     );
+    const totalDiskon = filteredHistory.reduce(
+      (acc, curr) => acc + (curr.discount || 0),
+      0,
+    );
+
     const waktuCetak = new Date().toLocaleTimeString("id-ID", {
       hour: "2-digit",
       minute: "2-digit",
@@ -1376,6 +1407,8 @@ export default function App() {
         ${dailyItemsSummary.length === 0 ? '<p style="text-align:center; font-style:italic; color:#999; font-size:14px; padding: 20px;">Belum ada penjualan pada periode ini</p>' : ""}
         <div class="summary">
           <div class="summary-row"><span>Total Transaksi Selesai</span><span>${filteredHistory.length} Transaksi</span></div>
+          <div class="summary-row"><span>Total Harga Barang</span><span>${formatRp(totalSetoran + totalDiskon)}</span></div>
+          ${totalDiskon > 0 ? `<div class="summary-row" style="color: #ef4444;"><span>Total Potongan/Diskon Kasir</span><span>- ${formatRp(totalDiskon)}</span></div>` : ""}
           <div class="summary-row summary-total"><span>TOTAL UANG SETORAN</span><span>${formatRp(totalSetoran)}</span></div>
         </div>
         <div class="footer">Dokumen sah dihasilkan secara otomatis oleh Sistem TakoPOS.<br>Dicetak dari aplikasi web kasir.</div>
@@ -1430,7 +1463,7 @@ export default function App() {
             <div className="text-center mb-8 md:mb-10 mt-2">
               <img
                 src="/logo.PNG"
-                alt="Logo Toko Shafira"
+                alt="Logo Toko SHAFIRA"
                 className="w-16 h-16 md:w-20 md:h-20 mx-auto rounded-2xl shadow-xl mb-4 md:mb-6 object-contain bg-white"
               />
               <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
@@ -1588,7 +1621,7 @@ export default function App() {
       >
         <div className="flex justify-between items-center">
           <span className="text-sm md:text-base text-gray-500 font-medium">
-            Total Harga
+            Subtotal Harga
           </span>
           <span className="text-xl md:text-2xl font-black text-gray-900">
             {formatRp(cartTotal)}
@@ -1599,6 +1632,7 @@ export default function App() {
           onClick={() => {
             if (isMobile) setIsMobileCartOpen(false);
             setCheckoutModal(true);
+            setDiscountInput("");
           }}
           className="w-full min-h-[48px] md:min-h-[56px] py-3 md:py-4 rounded-xl font-bold text-base md:text-lg transition-all flex justify-center items-center gap-2 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-lg shadow-amber-500/30"
         >
@@ -2169,9 +2203,20 @@ export default function App() {
                   <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5 md:mb-1">
                     Nilai Transaksi
                   </p>
+                  {trx.discount > 0 && (
+                    <p className="text-xs text-gray-400 line-through decoration-red-500">
+                      {formatRp(trx.subTotal)}
+                    </p>
+                  )}
                   <p className="font-black text-lg md:text-xl text-gray-900">
                     {formatRp(trx.total)}
                   </p>
+                  {trx.discount > 0 && (
+                    <p className="text-[10px] text-red-500 font-bold mt-0.5">
+                      <Tag className="inline w-3 h-3 mr-0.5" />
+                      Potongan: {formatRp(trx.discount)}
+                    </p>
+                  )}
                 </div>
 
                 {currentUser?.role === "Owner" && (
@@ -2208,7 +2253,7 @@ export default function App() {
             <div className="flex items-center gap-2.5 md:gap-3">
               <img
                 src="/logo.PNG"
-                alt="Logo Toko Shafira"
+                alt="Logo Toko SHAFIRA"
                 className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl shadow-sm shrink-0 object-contain bg-white"
               />
               <div>
@@ -2770,7 +2815,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal 2: Checkout */}
+      {/* Modal 2: Checkout (WITH DISCOUNT) */}
       {checkoutModal && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90dvh] flex flex-col overflow-hidden">
@@ -2793,11 +2838,36 @@ export default function App() {
                 <p className="text-[10px] md:text-xs text-gray-400 mb-1 font-bold uppercase tracking-widest relative z-10">
                   Total Tagihan
                 </p>
+                {/* Jika ada diskon, tampilkan harga asli dicoret */}
+                {cartFinalTotal < cartTotal && (
+                  <p className="text-sm text-gray-400 line-through decoration-red-500 relative z-10 mb-0.5">
+                    {formatRp(cartTotal)}
+                  </p>
+                )}
                 <p className="text-3xl md:text-4xl font-black text-white relative z-10">
-                  {formatRp(cartTotal)}
+                  {formatRp(cartFinalTotal)}
                 </p>
               </div>
               <div className="space-y-4 md:space-y-5 mb-2">
+                {/* Input Potongan Harga (Baru) */}
+                <div>
+                  <label className="block text-xs md:text-sm font-bold text-gray-700 mb-1.5 md:mb-2 flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-red-500" /> Potongan Harga
+                    Manual
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    className="w-full text-base md:text-lg font-bold p-3 md:p-4 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-4 focus:ring-red-500/10 outline-none text-right transition-all text-red-600"
+                    value={discountInput}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      setDiscountInput(val ? formatRp(parseInt(val)) : "");
+                    }}
+                    placeholder="Rp 0 (Opsional)"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-xs md:text-sm font-bold text-gray-700 mb-1.5 md:mb-2">
                     Uang Diterima dari Pelanggan
@@ -2816,14 +2886,15 @@ export default function App() {
                   />
                 </div>
                 {cashInput &&
-                  parseInt(cashInput.replace(/\D/g, "")) >= cartTotal && (
+                  parseInt(cashInput.replace(/\D/g, "")) >= cartFinalTotal && (
                     <div className="p-3 md:p-4 bg-emerald-50 text-emerald-900 rounded-xl border-2 border-emerald-100 flex justify-between items-center animate-in fade-in shrink-0">
                       <span className="font-bold text-xs md:text-sm uppercase tracking-wide">
                         Kembalian
                       </span>
                       <span className="text-xl md:text-2xl font-black">
                         {formatRp(
-                          parseInt(cashInput.replace(/\D/g, "")) - cartTotal,
+                          parseInt(cashInput.replace(/\D/g, "")) -
+                            cartFinalTotal,
                         )}
                       </span>
                     </div>
@@ -2899,8 +2970,22 @@ export default function App() {
               </div>
               <div className="p-5 md:p-6 pt-0 shrink-0">
                 <div className="space-y-2 mb-5 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  {/* Menampilkan Rincian Diskon jika ada */}
+                  {receiptModal.discount > 0 && (
+                    <>
+                      <div className="flex justify-between text-sm text-gray-500 font-medium mb-1">
+                        <span>Subtotal</span>
+                        <span>{formatRp(receiptModal.subTotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-red-500 font-bold mb-2 pb-2 border-b border-gray-200">
+                        <span>Potongan Diskon</span>
+                        <span>- {formatRp(receiptModal.discount)}</span>
+                      </div>
+                    </>
+                  )}
+
                   <div className="flex justify-between font-black text-lg text-gray-900 mb-2 pb-2 border-b border-gray-200">
-                    <span>TOTAL</span>
+                    <span>TOTAL AKHIR</span>
                     <span>{formatRp(receiptModal.total)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-gray-600 font-medium">
