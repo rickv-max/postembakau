@@ -511,6 +511,7 @@ export default function App() {
   const [checkoutModal, setCheckoutModal] = useState(false);
   const [cashInput, setCashInput] = useState("");
   const [receiptModal, setReceiptModal] = useState(null);
+  const [dailyReportModal, setDailyReportModal] = useState(false);
 
   const [editingProduct, setEditingProduct] = useState(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
@@ -638,9 +639,33 @@ export default function App() {
     const unsubInv = onSnapshot(
       collection(db, "artifacts", appId, "public", "data", "inventory"),
       (snapshot) => {
-        if (!snapshot.empty)
-          setInventory(snapshot.docs.map((doc) => doc.data()));
-        else
+        if (!snapshot.empty) {
+          const cloudData = snapshot.docs.map((doc) => doc.data());
+          setInventory(cloudData);
+
+          // --- SKRIP AUTO SEED / FORCE UPLOAD ---
+          // Jika data di awan hanya berisi data uji coba yang lama (< 50 barang)
+          // secara otomatis paksa upload ratusan data INITIAL_INVENTORY yang baru.
+          if (cloudData.length < 50 && INITIAL_INVENTORY.length > 300) {
+            console.log(
+              "Mendeteksi sisa data lama. Mengunggah data master baru ke Cloud...",
+            );
+            INITIAL_INVENTORY.forEach((inv) => {
+              setDoc(
+                doc(
+                  db,
+                  "artifacts",
+                  appId,
+                  "public",
+                  "data",
+                  "inventory",
+                  String(inv.id),
+                ),
+                inv,
+              );
+            });
+          }
+        } else {
           INITIAL_INVENTORY.forEach((inv) =>
             setDoc(
               doc(
@@ -655,6 +680,7 @@ export default function App() {
               inv,
             ),
           );
+        }
       },
       (err) => console.error("Sync Error:", err),
     );
