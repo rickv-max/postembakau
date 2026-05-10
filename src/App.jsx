@@ -646,11 +646,35 @@ export default function App() {
         if (!snapshot.empty) {
           const cloudData = snapshot.docs.map((doc) => doc.data());
           setInventory(cloudData);
+
+          // AUTO-SEED YANG AMAN (Anti Infinite Loop/Anti Lag)
+          // Hanya berjalan jika jumlah barang kurang dari 50 DAN belum pernah seeding di sesi browser ini.
           if (cloudData.length < 50 && INITIAL_INVENTORY.length > 300) {
-            console.log(
-              "Mendeteksi sisa data lama. Mengunggah data master baru ke Cloud...",
-            );
-            INITIAL_INVENTORY.forEach((inv) => {
+            if (!sessionStorage.getItem("tako_is_seeded_v2")) {
+              sessionStorage.setItem("tako_is_seeded_v2", "true");
+              console.log(
+                "Mengunggah data master baru secara aman ke Cloud...",
+              );
+              INITIAL_INVENTORY.forEach((inv) => {
+                setDoc(
+                  doc(
+                    db,
+                    "artifacts",
+                    appId,
+                    "public",
+                    "data",
+                    "inventory",
+                    String(inv.id),
+                  ),
+                  inv,
+                );
+              });
+            }
+          }
+        } else {
+          if (!sessionStorage.getItem("tako_is_seeded_v2")) {
+            sessionStorage.setItem("tako_is_seeded_v2", "true");
+            INITIAL_INVENTORY.forEach((inv) =>
               setDoc(
                 doc(
                   db,
@@ -662,24 +686,9 @@ export default function App() {
                   String(inv.id),
                 ),
                 inv,
-              );
-            });
-          }
-        } else {
-          INITIAL_INVENTORY.forEach((inv) =>
-            setDoc(
-              doc(
-                db,
-                "artifacts",
-                appId,
-                "public",
-                "data",
-                "inventory",
-                String(inv.id),
               ),
-              inv,
-            ),
-          );
+            );
+          }
         }
       },
       (err) => console.error("Sync Error:", err),
@@ -1463,7 +1472,7 @@ export default function App() {
             <div className="text-center mb-8 md:mb-10 mt-2">
               <img
                 src="/logo.PNG"
-                alt="Logo Toko Shafira"
+                alt="Logo Toko SHAFIRA"
                 className="w-16 h-16 md:w-20 md:h-20 mx-auto rounded-2xl shadow-xl mb-4 md:mb-6 object-contain bg-white"
               />
               <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">
@@ -1739,24 +1748,24 @@ export default function App() {
               <div
                 key={product.id}
                 onClick={() => handleOpenAddModal(product)}
-                className={`bg-white rounded-2xl border cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 relative flex flex-col h-full overflow-hidden ${product.stockGrams <= 0 ? "border-red-200 opacity-60 grayscale-[0.5]" : "border-gray-200 hover:border-amber-400 shadow-sm"}`}
+                className={`bg-white rounded-2xl border cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 relative flex flex-col min-h-[140px] overflow-hidden ${product.stockGrams <= 0 ? "border-red-200 opacity-60 grayscale-[0.5]" : "border-gray-200 hover:border-amber-400 shadow-sm"}`}
               >
                 {/* HEADER KARTU KHUSUS KODE BARANG */}
                 <div className="bg-gray-900 text-amber-400 font-black px-3 md:px-4 py-2 flex justify-between items-center border-b-2 border-amber-500 shrink-0">
-                  <span className="text-base md:text-lg font-mono tracking-widest">
+                  <span className="text-base md:text-lg font-mono tracking-widest truncate">
                     {product.itemCode || "-"}
                   </span>
                   {product.stockGrams <= 0 ? (
-                    <span className="text-[9px] bg-red-500 text-white px-1.5 py-0.5 rounded font-bold">
+                    <span className="text-[9px] bg-red-500 text-white px-1.5 py-0.5 rounded font-bold ml-2 shrink-0">
                       HABIS
                     </span>
                   ) : (
-                    <Package className="w-4 h-4 md:w-5 md:h-5 text-gray-500 opacity-50" />
+                    <Package className="w-4 h-4 md:w-5 md:h-5 text-gray-500 opacity-50 ml-2 shrink-0" />
                   )}
                 </div>
 
                 <div className="p-3 md:p-4 flex flex-col flex-1">
-                  <h3 className="font-bold text-gray-800 leading-snug mb-2 text-sm md:text-base line-clamp-2">
+                  <h3 className="font-bold text-gray-800 leading-tight mb-2 text-sm md:text-base line-clamp-2">
                     {product.name}
                   </h3>
                   <p className="text-amber-600 font-black text-sm md:text-base mb-3 mt-auto">
@@ -1765,7 +1774,7 @@ export default function App() {
                       / {product.isPiece ? "pcs" : "gr"}
                     </span>
                   </p>
-                  <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-100">
                     <span className="text-[10px] md:text-xs text-gray-500">
                       Stok:
                     </span>
@@ -2323,7 +2332,7 @@ export default function App() {
             <div className="flex items-center gap-2.5 md:gap-3">
               <img
                 src="/logo.PNG"
-                alt="Logo Toko Shafira"
+                alt="Logo Toko SHAFIRA"
                 className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl shadow-sm shrink-0 object-contain bg-white"
               />
               <div>
