@@ -108,53 +108,348 @@ const INITIAL_USERS = [
   },
 ];
 
-const generateInitialInventory = () => {
-  const baseItems = [
-    {
-      name: "Tembakau Gayo Aceh",
-      pricePerGram: 150,
-      costPerGram: 100,
-      itemCode: "A1",
-    },
-    {
-      name: "Tembakau Temanggung",
-      pricePerGram: 200,
-      costPerGram: 140,
-      itemCode: "A2",
-    },
-    {
-      name: "Tembakau Kasturi",
-      pricePerGram: 120,
-      costPerGram: 80,
-      itemCode: "A3",
-    },
-    {
-      name: "Tembakau Virginia",
-      pricePerGram: 250,
-      costPerGram: 170,
-      itemCode: "B1",
-    },
-    {
-      name: "Alat Linting (Roller)",
-      pricePerGram: 15000,
-      costPerGram: 10000,
-      itemCode: "C1",
-      isPiece: true,
-    },
-  ];
+const rdaData = [
+  "CIA DJI SAM SOE|234",
+  "DJI SAM SOE|234 SEDANG",
+  "HARUM MANIS|CIAA RASA",
+  "ISTIMEWA SUPER TOP|SUPER",
+  "KREPEK SITUBONDO|KREPEK",
+  "NYEGRAK|TOP RASA",
+  "NYEGRAK|MOJO RASA",
+  "NYEGRAK HALUS|HM",
+  "PAITON|PUTIANN",
+  "RASA CIA|L.A",
+  "RASA CIA|K",
+  "RASA CIA|MADURA",
+  "RASA CIA|SURYA PUTRA",
+  "RASA CIA HARUM|DJARUM",
+  "RASA CIA SUPER|M",
+  "RASA CIA SUPER|M12",
+  "RASA CIA SUPER|L",
+  "RASA GUDANG GARAM|CIA",
+  "RASA HARUM MANIS|DJ",
+  "RASA LEMAK KALEM|TR",
+  "RASA LEMAK KALEM|TOP",
+  "RASA LEMAK MANIS|AC",
+  "RASA LEMAK MANIS|KING",
+  "RASA LEMAK NYEGRAK|TOP BLACK",
+  "RASA LEMAK SEDANG|J1",
+  "RASA LEMAK TARIK|GA",
+  "RASA NYEGRAK|D",
+  "RASA NYEGRAK|SUPER ISTIMEWA",
+  "RASA NYEGRAK|ISTIMEWA",
+  "RASA NYEGRAK|SPESIAL",
+  "RASA NYEGRAK HALUS|HG",
+  "RASA NYEGRAK HALUS|GM",
+  "RASA NYEGRAK KALEM|B3",
+  "RASA NYEGRAK KALEM|R2",
+  "RASA NYEGRAK KALEM|NK",
+  "RASA NYEGRAK SANTAI|MK",
+  "RASA NYEGRAK SUPER|C",
+  "RASA NYEGRAK SUPER|A1",
+  "RASA NYEGRAK SUPER|A4",
+  "RASA SEDANG|PRIMA",
+  "RASA SEDANG|TOP 01",
+  "RASA SEDANG|N1 SURYA",
+  "RASA SEDANG|F",
+  "RASA SEDANG|H",
+  "RASA SEDANG|SEDAP",
+  "RASA SEDANG|SP",
+  "RASA SEDANG|N",
+  "RASA SEDANG|DE",
+  "RASA SEDANG|MOJO",
+  "RASA SEDANG|H1",
+  "RASA SEDANG|N1",
+  "RASA SEDANG|N12",
+  "RASA SEDANG|PREMIUM",
+  "RASA SEDANG|GT",
+  "RASA SEDANG ANTEP|BM",
+  "RASA SEDANG HALUS|NU",
+  "RASA SEDANG HALUS|TOP ONE",
+  "RASA SEDANG HALUS|R",
+  "RASA SEDANG HALUS|KM",
+  "RASA SEDANG HALUS|B4",
+  "RASA SEDANG KALEM|MANTAB",
+  "RASA SEDANG SUPER|F1",
+  "RASA SEDANG SUPER|AL",
+  "RASA SEDANG SUPER|B1",
+  "RASA SEDANG SUPER|G",
+  "RASA SEDANG TARIK|NA",
+  "RASA SURYA|SEDANG",
+  "SEDANG|GOLD",
+  "SUPER CIA|TURBO",
+  "SUPER CIA 2 THN|RADJA",
+  "SUPER CIA 3 THN|INTER",
+  "SUPER CIA 3 THN|CLASS",
+  "SUPER CIA 3 THN|MASTER",
+  "SUPER JOSS LEMAK|JOSS",
+  "SUPER PREMIUM|A",
+  "SUPER PREMIUM|B",
+  "SURYA NUSANTARA|CIA RASA",
+];
+const tunjungData = [
+  "CIA|MOJO RASA",
+  "CIA MANIS|Z",
+  "FULL NYEGRAK|ISTIMEWA",
+  "LEMAK HARUM|AC",
+  "MARLBORO|PUTIAN RASA",
+  "MOJO RASA CIA|MOJO CIA",
+  "RASA CIA|L.A",
+  "RASA CIA|V",
+  "RASA CIA|W1",
+  "RASA CIA HARUM|V1",
+  "RASA CIA MANIS|CM",
+  "RASA CIA TARIK|M",
+  "RASA CIA TARIK|W",
+  "RASA CIA TARIK|N1",
+  "RASA COUNTRY|PUTIAN",
+  "RASA FULL CIA|S",
+  "RASA FULL NYEGRAK|A1",
+  "RASA FULL NYEGRAK|B",
+  "RASA FULL SEDANG|G",
+  "RASA FULL SEDANG|B1",
+  "RASA HARUM MANIS|G1",
+  "RASA HARUM MANIS|K",
+  "RASA KALEM|P1",
+  "RASA LEMAK|TOP ONE",
+  "RASA LEMAK KALEM|TR",
+  "RASA LEMAK SEDANG|E1",
+  "RASA NYEGRAK|HG",
+  "RASA NYEGRAK SANTAI|A2",
+  "RASA NYEGRAK SUPER|GA",
+  "RASA NYEGRAK SUPER MANTAB|SD",
+  "RASA SEADANG KALEM|SP",
+  "RASA SEDANG|FB",
+  "RASA SEDANG|K1",
+  "RASA SEDANG|TOP",
+  "RASA SEDANG|H",
+  "RASA SEDANG|NA",
+  "RASA SEDANG|C1",
+  "RASA SEDANG|MOJO",
+  "RASA SEDANG|R",
+  "RASA SEDANG|JP",
+  "RASA SEDANG|N2",
+  "RASA SEDANG|M1",
+  "RASA SEDANG|R1",
+  "RASA SEDANG|TM",
+  "RASA SEDANG|BM",
+  "RASA SEDANG|WA",
+  "RASA SEDANG|L",
+  "RASA SEDANG|L1",
+  "RASA SEDANG ANTEP|F1",
+  "RASA SEDANG HALUS|D",
+  "RASA SEDANG HALUS|J1",
+  "RASA SEDANG HALUS|RM",
+  "RASA SEDANG HALUS|NU",
+  "RASA SEDANG HARUM|N",
+  "RASA SEDANG KALEM|C",
+  "RASA SEDANG KALEM|H1",
+  "RASA SEDANG KALEM|GT",
+  "RASA SEDANG KALEM|HM",
+  "RASA SEDANG SUPER|KING",
+  "RASA SEDANG SUPER|E",
+  "RASA SEDANG SUPER|P",
+  "RASA SEDANG TARIK|F",
+  "RASA SEDANG TARIK|J",
+  "RASA SEDANG TARIK|D1",
+  "RASA SURYA NUSANTARA|CIA",
+  "SAMPOERNA|CIA RASA",
+  "SITUBONDO|KREPEK",
+  "SUPER LAJUH|TOP 02",
+  "SUPER PREMIUM|A",
+];
+const jatirotoData = [
+  "BEKOH MADURA|MUJIB",
+  "BEKON MAT JEK I|BAKO",
+  "BESUKI|PUTIAN",
+  "CIA PREMIUM|GT",
+  "CIA SUPER|E",
+  "CIA SURYA|LOS",
+  "KING MASTER|MASTER",
+  "KUNING KAYU MAS|KAYU MAS",
+  "MADURA RASA SEDANG|MDR",
+  "MOJO RASA CIA|MOJO CIA",
+  "NYEGRAK HALUS|HM",
+  "NYEGRAK PAS|AS",
+  "PAITON|PUTIANN",
+  "RASA CIA|MADURA",
+  "RASA CIA HALUS|PR",
+  "RASA CIA ORIGINAL|MT",
+  "RASA CIA SUPER|M",
+  "RASA CIA TARIK|M12",
+  "RASA HALUS MANIS|N",
+  "RASA LEMAK|TOP 01",
+  "RASA LEMAK HALUS|AM",
+  "RASA LEMAK KALEM|AC",
+  "RASA LEMAK KALEM|TR",
+  "RASA LEMAK LOS|L.A",
+  "RASA LEMAK SEDANG|B1",
+  "RASA LEMAK TARIK|A1",
+  "RASA LEMAK TARIK|B2",
+  "RASA NUSANTARA|CIAA",
+  "RASA NYEGRAK|MK",
+  "RASA NYEGRAK|R2",
+  "RASA NYEGRAK|TOP FULL",
+  "RASA NYEGRAK|Y",
+  "RASA NYEGRAK HALUS|GA",
+  "RASA NYEGRAK HALUS|C",
+  "RASA NYEGRAK KALEM|D1",
+  "RASA NYEGRAK KALEM|G1",
+  "RASA NYEGRAK KALEM|B3",
+  "RASA NYEGRAK KALEM|E1",
+  "RASA NYEGRAK SANTAI|B",
+  "RASA NYEGRAK SUPER|X",
+  "RASA SEDANG|TOP PAS",
+  "RASA SEDANG|D",
+  "RASA SEDANG|F",
+  "RASA SEDANG|V",
+  "RASA SEDANG|TOP ONE",
+  "RASA SEDANG|MOJO",
+  "RASA SEDANG HALUS|H",
+  "RASA SEDANG HALUS|NU",
+  "RASA SEDANG MANTAP|J1",
+  "RASA SEDANG SUPER|KING",
+  "RASA SEDANG TARIK|HG",
+  "RASA SEDANG TARIK|Z",
+  "RASA SEDANG TRAIK|NK",
+  "RASA SURYA|CIA",
+  "SITUBONDO|KREPEK",
+  "SUPER PREMIUM|A",
+];
+const sumberbaruData = [
+  "CIA HARUM|R2",
+  "CIA HARUM|D7",
+  "CIA HARUM|MK",
+  "CIA HARUM MANIS|N WR",
+  "CIA HARUM MANIS|P WR",
+  "CIA HARUM MANIS|R WR",
+  "CIA HARUM MANIS|S WR",
+  "CIA HARUM MANIS|T",
+  "CIA LOSS|ST",
+  "CIA MANIS|CM",
+  "LEMAK KALEM|AC",
+  "LEMAK MANIS|DS",
+  "LEMAK MANIS|TOP 2",
+  "NYEGRAK HALUS|HM",
+  "NYEGRAK KALEM|GA",
+  "NYEGRAK SUPER|A1",
+  "NYEGRAK SUPER|TOP 1",
+  "PREMIUM|SUPER",
+  "PUTIAN BESUKI SEDANG|A BES",
+  "PUTIAN CIA HARUM|T WR",
+  "PUTIAN CIA HARUM|V WR",
+  "PUTIAN KREPEK|A KRE",
+  "PUTIAN PAITON SEDANG|A PA",
+  "PUTIAN WRINGIN|A WR",
+  "PUTIAN WRINGIN|B WR",
+  "PUTIAN WRINGIN|C WR",
+  "PUTIAN WRINGIN|D WR",
+  "PUTIAN WRINGIN CIA|E WR",
+  "PUTIAN WRINGIN CIA|F WR",
+  "PUTIAN WRINGIN CIA|G WR",
+  "PUTIAN WRINGIN CIA|H WR",
+  "PUTIAN WRINGIN CIA|E1 WR",
+  "PUTIAN WRINGIN CIA|F1 WR",
+  "PUTIAN WRINGIN CIA|G1 WR",
+  "PUTIAN WRINGIN CIA|H1 WR",
+  "PUTIAN WRINGIN CIA LOS|J1 WR",
+  "PUTIAN WRINGIN CIA LOS|K1 WR",
+  "PUTIAN WRINGIN CIA LOS|L1 WR",
+  "PUTIAN WRINGIN CIA LOS|M1 WR",
+  "PUTIAN WRINGIN CIA LOS|J WR",
+  "PUTIAN WRINGIN CIA LOS|K WR",
+  "PUTIAN WRINGIN CIA LOS|L WR",
+  "PUTIAN WRINGIN CIA LOS|M WR",
+  "PUTIAN WRINGIN SEDANG|A1 WR",
+  "PUTIAN WRINGIN SEDANG|B1 WR",
+  "PUTIAN WRINGIN SEDANG|C1 WR",
+  "PUTIAN WRINGIN SEDANG|D1 WR",
+  "RASA CIA|E",
+  "RASA CIA|LA",
+  "RASA CIA|ZA",
+  "RASA CIA HARUM|DJARUM",
+  "RASA CIA HARUM|SAMPOERNA",
+  "RASA CIA LOS|W1",
+  "RASA CIA LOSS|JF",
+  "RASA CIA TARIK|SP",
+  "RASA CIA TARIK|NA",
+  "RASA GUDANG GARAM|GG",
+  "RASA HARUM MANIS|DK",
+  "RASA LEMAK|SEDAP",
+  "RASA LEMAK HARUM|AE",
+  "RASA LEMAK KALEM|TR",
+  "RASA LEMAK MANIS|SR",
+  "RASA LEMAK MANIS|C",
+  "RASA LEMAK TARIK|DA",
+  "RASA NUSANTARA|CIAA",
+  "RASA NYEGRAK KALEM|B",
+  "RASA RASA CIA TARIK|W",
+  "RASA SEDANG|TOP PAS",
+  "RASA SEDANG|F",
+  "RASA SEDANG|V",
+  "RASA SEDANG|TOP ONE",
+  "RASA SEDANG|JP",
+  "RASA SEDANG|GT",
+  "RASA SEDANG|N1",
+  "RASA SEDANG|FB",
+  "RASA SEDANG|MANTAB",
+  "RASA SEDANG|TOP",
+  "RASA SEDANG|G",
+  "RASA SEDANG|H",
+  "RASA SEDANG HALUS|KM",
+  "RASA SEDANG HALUS|NU",
+  "RASA SEDANG HALUS|HR",
+  "RASA SEDANG HALUS|YS",
+  "RASA SEDANG HALUS|PR",
+  "RASA SEDANG HALUS|GP",
+  "RASA SEDANG HARUM|DJ",
+  "RASA SEDANG KALEM|N",
+  "RASA SEDANG KALEM|B1",
+  "RASA SEDANG TARIK|BM",
+  "RASA SEDANG TARIK|D",
+  "RASA SEDANG TARIK|D1",
+  "RASA SUPER PREMIUM|GOLD",
+  "RASA SUPER PREMIUM|INTER",
+  "RASA SURYA|CIA",
+  "SEDANG|TOP SUPER",
+  "SEDANG HALUS|PG",
+  "SEDANG TARIK|A2",
+  "SUPER PREMIUM|CLASS",
+  "SUPER PREMIUM|TURBO",
+];
 
+const generateInitialInventory = () => {
   let inventory = [];
   let idCounter = 1;
-  INITIAL_BRANCHES.forEach((branch) => {
-    baseItems.forEach((item) => {
+
+  const addItems = (branchId, itemsArr) => {
+    itemsArr.forEach((itemStr) => {
+      const [name, code] = itemStr.split("|");
+      // Harga dan Stok Dibuat Random
+      const cost = Math.floor(Math.random() * 8 + 5) * 10; // Modal 50 s.d 120
+      const price = cost + Math.floor(Math.random() * 5 + 3) * 10; // Jual modal + 30 s.d 70
+      const stock = Math.floor(Math.random() * 90 + 10) * 100; // Stok 1000 s.d 10000 gr
+
       inventory.push({
         id: idCounter++,
-        ...item,
-        stockGrams: item.isPiece ? 50 : 5000,
-        branchId: branch.id,
+        name: name,
+        itemCode: code,
+        pricePerGram: price,
+        costPerGram: cost,
+        stockGrams: stock,
+        category: "Tembakau Racikan",
+        isPiece: false,
+        branchId: branchId,
       });
     });
-  });
+  };
+
+  addItems("br_01", rdaData); // Randuagung
+  addItems("br_02", sumberbaruData); // Pasar Randuagung disamakan dengan Sumber Baru
+  addItems("br_03", tunjungData); // Tunjung
+  addItems("br_04", jatirotoData); // Jatiroto
+  addItems("br_05", sumberbaruData); // Sumber Baru
+
   return inventory;
 };
 
@@ -216,7 +511,6 @@ export default function App() {
   const [checkoutModal, setCheckoutModal] = useState(false);
   const [cashInput, setCashInput] = useState("");
   const [receiptModal, setReceiptModal] = useState(null);
-  const [dailyReportModal, setDailyReportModal] = useState(false);
 
   const [editingProduct, setEditingProduct] = useState(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
@@ -1065,7 +1359,6 @@ export default function App() {
     `;
     printWindow.document.write(htmlContent);
     printWindow.document.close();
-    setDailyReportModal(false);
     showToast("Menyiapkan file PDF...");
   };
 
@@ -1118,7 +1411,7 @@ export default function App() {
                 Toko SHAFIRA
               </h1>
               <p className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mt-1 md:mt-2">
-                Sistem POS Tembakau
+                Sistem Autentikasi
               </p>
             </div>
 
@@ -1175,44 +1468,6 @@ export default function App() {
                 Sistem
               </button>
             </form>
-
-            <div className="mt-6 md:mt-8 bg-amber-50 p-3 md:p-4 rounded-xl border border-amber-100">
-              <p className="text-[10px] text-amber-800 font-bold uppercase tracking-widest text-center mb-2 md:mb-3">
-                Akun Demo (Pusat & Cabang)
-              </p>
-              <div className="grid grid-cols-2 gap-2 md:gap-3 text-xs font-medium text-amber-900">
-                <div className="bg-white/60 p-2 rounded-lg text-center">
-                  <p className="font-bold mb-1">👑 Owner (Semua Cabang)</p>
-                  <p>
-                    User:{" "}
-                    <code className="bg-amber-200/50 px-1 rounded font-bold">
-                      admin
-                    </code>
-                  </p>
-                  <p>
-                    Pass:{" "}
-                    <code className="bg-amber-200/50 px-1 rounded font-bold">
-                      admin
-                    </code>
-                  </p>
-                </div>
-                <div className="bg-white/60 p-2 rounded-lg text-center">
-                  <p className="font-bold mb-1">🧑‍💼 Kasir Randuagung</p>
-                  <p>
-                    User:{" "}
-                    <code className="bg-amber-200/50 px-1 rounded font-bold">
-                      kasir_rda
-                    </code>
-                  </p>
-                  <p>
-                    Pass:{" "}
-                    <code className="bg-amber-200/50 px-1 rounded font-bold">
-                      123
-                    </code>
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
 
           {toast && (
@@ -1753,7 +2008,7 @@ export default function App() {
 
           {currentUser?.role !== "Owner" && (
             <button
-              onClick={() => setDailyReportModal(true)}
+              onClick={handleSavePDF}
               disabled={filteredHistory.length === 0}
               className="w-full sm:w-auto bg-gray-900 hover:bg-black disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm active:scale-95 shrink-0 min-h-[40px] md:min-h-[44px]"
             >
@@ -1925,7 +2180,7 @@ export default function App() {
             <div className="flex items-center gap-2.5 md:gap-3">
               <img
                 src="/logo.PNG"
-                alt="Logo Toko Shafira"
+                alt="Logo Toko Safira"
                 className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl shadow-sm shrink-0 object-contain bg-white"
               />
               <div>
@@ -2729,7 +2984,7 @@ export default function App() {
                     </label>
                     <input
                       type="text"
-                      className="w-full p-3 md:p-4 border-2 border-gray-200 rounded-xl focus:border-amber-500 outline-none font-bold text-sm md:text-base transition-all bg-white"
+                      className="w-full p-3 md:p-4 border-2 border-gray-200 rounded-xl focus:border-amber-50 outline-none font-bold text-sm md:text-base transition-all bg-white"
                       value={editingProduct.itemCode || ""}
                       placeholder="Contoh: A1"
                       onChange={(e) =>
