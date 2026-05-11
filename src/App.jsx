@@ -87,7 +87,7 @@ const INITIAL_USERS = [
     id: 1,
     username: "admin",
     password: "admin",
-    name: "Bpk. Pemilik",
+    name: "Moch. Anis",
     role: "Owner",
     branchId: "all",
   },
