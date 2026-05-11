@@ -2475,9 +2475,14 @@ export default function App() {
               >
                 <X className="w-4 h-4 md:w-5 md:h-5" />
               </button>
-              <div className="w-14 h-14 md:w-16 md:h-16 bg-white text-gray-900 rounded-full mx-auto mb-2 md:mb-3 flex items-center justify-center text-xl md:text-2xl font-black shadow-lg uppercase">
-                {currentUser.name.charAt(0)}
-              </div>
+              {currentUser.role === "Owner" ? (
+  <img src="/logo.PNG" alt="Owner Profile" className="w-14 h-14 md:w-16 md:h-16 rounded-full mx-auto mb-2 md:mb-3 object-contain shadow-lg border-2 border-white bg-white" />
+) : (
+  <div className="w-14 h-14 md:w-16 md:h-16 bg-white text-gray-900 rounded-full mx-auto mb-2 md:mb-3 flex items-center justify-center text-xl md:text-2xl font-black shadow-lg uppercase">
+    {currentUser.name.charAt(0)}
+  </div>
+)}
+
               <h3 className="text-lg md:text-xl font-black text-white leading-none">
                 {currentUser.name}
               </h3>
